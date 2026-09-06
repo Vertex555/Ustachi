@@ -1,13 +1,13 @@
 const router = require("express").Router();
 
 const { authRequired } = require("../middleware/auth");
-const { authLimiter } = require("../middleware/rateLimit");
+const { sendCodeLimiter, telegramStatusLimiter, guestLimiter } = require("../middleware/rateLimit");
 const ctrl = require("../controllers/auth.controller");
 
-router.post("/send-code", authLimiter, ctrl.sendCode);
-router.get("/telegram-status", authLimiter, ctrl.telegramStatus);
-router.post("/verify", authLimiter, ctrl.verify);
-router.post("/guest", authLimiter, ctrl.guest);
+router.post("/send-code", sendCodeLimiter, ctrl.sendCode);
+router.get("/telegram-status", telegramStatusLimiter, ctrl.telegramStatus);
+router.post("/verify", sendCodeLimiter, ctrl.verify);
+router.post("/guest", guestLimiter, ctrl.guest);
 router.get("/me", authRequired, ctrl.me);
 
 module.exports = router;

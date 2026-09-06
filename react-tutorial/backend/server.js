@@ -13,6 +13,9 @@ const { initSocket } = require("./src/services/socket");
 
 const app = express();
 
+// Proxy / nginx ortida client IP ni to'g'ri aniqlash (rate-limit kalitlari uchun)
+app.set("trust proxy", 1);
+
 // Xavfsizlik sarlavhalari. Rasmlarni cross-origin ko'rsatishga ruxsat.
 app.use(
   helmet({
@@ -57,13 +60,17 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-// Global rate limit — har qanday client uchun 600 so'rov / 15 daqiqa
+// Global rate limit — hech qanday client 3000 so'rov / 15 daqiqa (user bo'yicha, IP emas).
+// Bu faqat ekstremal DoS/Ustar xurujlarini to'xtatish uchun.
 const { default: rateLimit } = require("express-rate-limit");
+const { userOrIpKey } = require("./src/middleware/rateLimit");
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 600,
+  max: 3000,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: userOrIpKey,
+  skip: (req) => req.path === "/api/health",
   message: { success: false, message: "Juda ko'p so'rov. Biroz kuting." },
 });
 app.use("/api", globalLimiter);
