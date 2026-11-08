@@ -51,7 +51,7 @@ docker compose down        # to'xtatish (ma'lumotlar saqlanadi)
 
 ## 2. Qo'lda ishga tushirish (ishlab chiqish) / Manual development setup
 
-**Talablar / Requirements:** Node.js **20+**, npm, va MongoDB (lokal o'rnatilgan yoki `docker compose up -d mongo`).
+**Talablar / Requirements:** Node.js **22+** (20 EOL — jsdom/vitest uchun kerak), npm, va MongoDB (lokal o'rnatilgan yoki `docker compose up -d mongo`).
 
 ### 2.1 Backend (port 5000)
 
@@ -210,7 +210,7 @@ Fixora/
 
 ## English summary
 
-**Requirements:** Node.js 20+, MongoDB 7 (or Docker only), npm.
+**Requirements:** Node.js 22+, MongoDB 7 (or Docker only), npm.
 
 **Production-like (recommended):**
 
