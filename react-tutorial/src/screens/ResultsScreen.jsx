@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from "react";
+﻿import React, { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { apiUrl, authHeaders } from "../services/api";
 import { YandexMap } from "../components/YandexMap";
 import { fetchSavedMasters, saveMaster, unsaveMaster } from "../services/savedMasters";
@@ -25,23 +26,19 @@ export const ResultsScreen = ({ orderParams, onBack, onOrder }) => {
   const userLocation = orderParams?.userLocation || { lat: 41.311081, lng: 69.240562 };
   const device = details.device || "";
 
-  const [masters, setMasters] = useState([]);
   const [filterType, setFilterType] = useState("rating");
   const [savedIds, setSavedIds] = useState([]);
 
-  const load = useCallback(async () => {
-    try {
+  const { data: masters = [] } = useQuery({
+    queryKey: ["masters", "all"],
+    queryFn: async () => {
       const res = await fetch(apiUrl("/api/masters"), { headers: authHeaders() });
       const data = await res.json();
-      if (res.ok && data && Array.isArray(data.data)) {
-        setMasters(data.data);
-      } else if (data && Array.isArray(data)) {
-        setMasters(data);
-      }
-    } catch {}
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
+      if (res.ok && data && Array.isArray(data.data)) return data.data;
+      if (data && Array.isArray(data)) return data;
+      return [];
+    },
+  });
 
   useEffect(() => {
     (async () => {
@@ -76,7 +73,7 @@ export const ResultsScreen = ({ orderParams, onBack, onOrder }) => {
 
   return (
     <div style={{ display: "flex", justifyContent: "center", width: "100%", minHeight: "100vh", backgroundColor: theme.bg }}>
-      <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", width: "100%", maxWidth: "800px", backgroundColor: theme.bg, color: theme.text, fontFamily: theme.font.family, boxSizing: "border-box", padding: "16px", boxShadow: "0 0 20px rgba(0,0,0,0.05)" }}>
+      <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", width: "100%", maxWidth: "100%", backgroundColor: theme.bg, color: theme.text, fontFamily: theme.font.family, boxSizing: "border-box", padding: "16px", boxShadow: "0 0 20px rgba(0,0,0,0.05)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "14px" }}>
           <button onClick={onBack} aria-label={t("back")}
             style={{ backgroundColor: theme.surface, border: `1px solid ${theme.border}`, borderRadius: "50%", width: "40px", height: "40px", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: theme.text, fontSize: "18px", fontWeight: "bold", boxShadow: theme.shadowSm }}><img src={`https://api.iconify.design/lucide:chevron-left.svg?color=${encodeURIComponent(theme.text)}`} width="18" height="18" alt="" /></button>
@@ -103,7 +100,7 @@ export const ResultsScreen = ({ orderParams, onBack, onOrder }) => {
           />
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px", flex: 1 }}>
+<div className="ust-list-grid" style={{ flex: 1 }}>
           {sorted.length === 0 ? (
             <p style={{ fontSize: "14px", color: theme.textTertiary, textAlign: "center", padding: "30px 0" }}>{t("up_noMasters")}</p>
           ) : (
@@ -115,7 +112,7 @@ export const ResultsScreen = ({ orderParams, onBack, onOrder }) => {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <p style={{ fontSize: "14px", fontWeight: "800", margin: "0 0 3px 0", color: theme.text }}>{master.name}</p>
                   <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: theme.textSecondary, flexWrap: "wrap" }}>
-                    <span style={{ fontWeight: "700", display: "flex", alignItems: "center", gap: "4px" }}><img src="https://api.iconify.design/lucide:star.svg?color=%23f59e0b&fill=%23f59e0b" width="13" height="13" alt="" />{master.rating ?? 0}</span>
+                    <span style={{ fontWeight: "700", display: "flex", alignItems: "center", gap: "4px" }}><img src="https://api.iconify.design/lucide:star.svg?color=%23059669&fill=%23059669" width="13" height="13" alt="" />{master.rating ?? 0}</span>
                     <span>•</span>
                     <span style={{ color: theme.primary, fontWeight: "700" }}>{master.distance}</span>
                   </div>
@@ -138,3 +135,5 @@ export const ResultsScreen = ({ orderParams, onBack, onOrder }) => {
 };
 
 export default ResultsScreen;
+
+

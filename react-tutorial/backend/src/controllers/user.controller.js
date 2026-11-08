@@ -1,7 +1,8 @@
 const User = require("../models/User");
 const Master = require("../models/Master");
-const { serializeUser, serializeMaster } = require("../utils/helpers");
+const { serializeUserWithMaster, serializeMaster } = require("../utils/helpers");
 const { sendVerificationCode } = require("../services/telegram");
+const { isAdminPhone } = require("../middleware/admin");
 
 const VALID_ROLES = ["user", "master"];
 
@@ -11,6 +12,25 @@ function validPhone(value) {
 
 function generateCode() {
   return String(Math.floor(1000 + Math.random() * 9000));
+}
+
+// Guest foydalanuvchi "usta" rolini tanlaganda Master hujjati avtomatik yaratiladi.
+// Aks holda `Master.findOne({ user })` -> null bo'lib, buyurtma/chat/holat yangilash
+// ishlashdan to'xtaydi. Telefoni `guest-...` bo'lgani uchun profil KATALOGGA chiqmaydi
+// (isPublished: false) — faqat kelgan buyurtmalarni qabul qiladi.
+async function ensureMasterProfile(user) {
+  let master = await Master.findOne({ user: user._id });
+  if (master) return master;
+
+  master = await Master.create({
+    user: user._id,
+    name: (user.name && user.name.trim()) || "Mehmon usta",
+    phone: user.phone,
+    experience: "",
+    devices: [],
+    isPublished: false,
+  });
+  return master;
 }
 
 // Foydalanuvchi rolini yangilash (User / Master)
@@ -23,19 +43,39 @@ exports.updateMe = async (req, res) => {
       .json({ success: false, message: "Noto'g'ri rol tanlandi" });
   }
 
+  // Admin raqami rolini user/masterga tushirib bo'lmaydi (server qaror qiladi)
+  if (isAdminPhone(req.user.phone)) {
+    return res.json({
+      success: true,
+      message: "Administrator roli o'zgartirilmaydi",
+      user: await serializeUserWithMaster(req.user),
+    });
+  }
+
   req.user.role = role;
   await req.user.save();
 
-  res.json({ success: true, user: serializeUser(req.user) });
+  if (role === "master") {
+    try {
+      await ensureMasterProfile(req.user);
+    } catch (e) {
+      return res
+        .status(500)
+        .json({ success: false, message: "Usta profili yaratilmadi: " + e.message });
+    }
+  }
+
+  res.json({ success: true, user: await serializeUserWithMaster(req.user) });
 };
 
-// Profil ma'lumotlarini yangilash (ism, email, avatar, telefon)
+// Profil ma'lumotlarini yangilash (ism, email, avatar, banner, telefon)
 exports.updateProfile = async (req, res) => {
-  const { name, email, photo, phone } = req.body || {};
+  const { name, email, photo, phone, banner } = req.body || {};
 
   if (name !== undefined) req.user.name = String(name || "").trim();
   if (email !== undefined) req.user.email = String(email || "").trim();
   if (photo !== undefined) req.user.photo = String(photo || "") || null;
+  if (banner !== undefined) req.user.banner = String(banner || "") || null;
 
   if (phone !== undefined) {
     const cleanPhone = String(phone || "").replace(/[\s-]/g, "");
@@ -59,7 +99,7 @@ exports.updateProfile = async (req, res) => {
   }
 
   await req.user.save();
-  res.json({ success: true, user: serializeUser(req.user) });
+  res.json({ success: true, user: await serializeUserWithMaster(req.user) });
 };
 
 // Saqlangan ustalar ro'yxati (to'liq ma'lumot bilan)
@@ -85,7 +125,7 @@ exports.addSavedMaster = async (req, res) => {
     await user.save();
   }
 
-  res.json({ success: true, user: serializeUser(user) });
+  res.json({ success: true, user: await serializeUserWithMaster(user) });
 };
 
 // Saqlangan ustani o'chirish
@@ -97,7 +137,7 @@ exports.removeSavedMaster = async (req, res) => {
   );
   await user.save();
 
-  res.json({ success: true, user: serializeUser(user) });
+  res.json({ success: true, user: await serializeUserWithMaster(user) });
 };
 
 // Telefon raqamni o'zgartirish — 1-qadam: yangi raqamga kod yuborish
@@ -169,5 +209,5 @@ exports.changePhoneVerify = async (req, res) => {
   req.user.pendingPhone = undefined;
   await req.user.save();
 
-  res.json({ success: true, user: serializeUser(req.user) });
+  res.json({ success: true, user: await serializeUserWithMaster(req.user) });
 };

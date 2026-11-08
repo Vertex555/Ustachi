@@ -1,9 +1,11 @@
-import React, { useEffect, useState, useCallback } from "react";
+﻿import React, { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { apiUrl, authHeaders } from "../services/api";
 import { useTheme } from "../theme/ThemeContext";
 import { useTranslation } from "../i18n/LanguageContext";
 import { attachSocket } from "../services/socket";
 import { YandexMap } from "../components/YandexMap";
+import { displayName, isGuestPhone } from "../utils/display";
 
 const STATUS_STEPS = [
   { key: "placed", i18n: "statusPlaced" },
@@ -22,7 +24,7 @@ function formatDateTime(value) {
   return `${date}, ${time}`;
 }
 
-export const OrderTracking = ({ orderData, onBack, onOpenChat, viewerRole }) => {
+export const OrderTracking = ({ orderData, orderId: orderIdProp, onBack, onOpenChat, viewerRole }) => {
   const { theme } = useTheme();
   const { t } = useTranslation();
   const [live, setLive] = useState(null);
@@ -32,27 +34,33 @@ export const OrderTracking = ({ orderData, onBack, onOpenChat, viewerRole }) => 
   const [review, setReview] = useState("");
   const [ratingMsg, setRatingMsg] = useState("");
   const [rated, setRated] = useState(false);
+  const [payState, setPayState] = useState({ busy: false, msg: "" });
 
-  const orderId = orderData?.id;
+  const orderId = orderData?.id || orderIdProp;
 
-  const loadOrder = useCallback(async () => {
-    if (!orderId) return;
-    try {
+  const { data: fetched, refetch } = useQuery({
+    queryKey: ["order", orderId],
+    queryFn: async () => {
+      if (!orderId) return null;
       const res = await fetch(apiUrl(`/api/orders/${orderId}`), { headers: authHeaders() });
       const data = await res.json();
-      if (res.ok && data.success && data.data) {
-        setLive(data.data);
-        setStatus(data.data.status);
-        setRated((data.data.rating || 0) > 0);
-      }
-    } catch {}
-  }, [orderId]);
+      if (res.ok && data.success && data.data) return data.data;
+      return null;
+    },
+    enabled: !!orderId,
+  });
 
-  useEffect(() => { loadOrder(); }, [loadOrder]);
+  useEffect(() => {
+    if (fetched) {
+      setLive(fetched);
+      setStatus(fetched.status);
+      setRated((fetched.rating || 0) > 0);
+    }
+  }, [fetched]);
 
   // Real-time: status + jonli lokatsiya
   useEffect(() => {
-    attachSocket({
+    const { detach } = attachSocket({
       onOrderUpdate: (p) => {
         if (p.order?.id === orderId) {
           setLive(p.order);
@@ -64,7 +72,7 @@ export const OrderTracking = ({ orderData, onBack, onOpenChat, viewerRole }) => 
         if (p.orderId === orderId) setLiveLoc({ lat: p.lat, lng: p.lng, by: p.by });
       },
     });
-    return () => {};
+    return detach;
   }, [orderId]);
 
   const current = live || orderData || {};
@@ -84,7 +92,7 @@ export const OrderTracking = ({ orderData, onBack, onOpenChat, viewerRole }) => 
         const res = await fetch(apiUrl(`/api/chat/open/user/${userId}`), { headers: authHeaders() });
         const data = await res.json();
         if (res.ok && data.success && data.data) {
-          onOpenChat({ chatId: data.data.id, peerName: peerUserPhone || t("master") });
+          onOpenChat({ chatId: data.data.id, peerName: displayName(current.user?.name, peerUserPhone) || t("user") });
         }
       } catch {}
       return;
@@ -100,6 +108,66 @@ export const OrderTracking = ({ orderData, onBack, onOpenChat, viewerRole }) => 
     } catch {}
   };
 
+  const payNow = async () => {
+    if (!orderId || payState.busy) return;
+    setPayState({ busy: true, msg: "" });
+
+    // Click / Payme — to'lov sahifasini ochamiz, chek chek daftari kutilmaydi
+    const pm = current.paymentMethod;
+    if (pm === "click" || pm === "payme") {
+      try {
+        const res = await fetch(apiUrl(`/api/payments/orders/${orderId}/${pm}/link`), {
+          method: "POST",
+          headers: authHeaders(),
+        });
+        const data = await res.json();
+        if (res.ok && data.success && data.data && data.data.url) {
+          window.open(data.data.url, "_blank", "noopener,noreferrer");
+          setPayState({ busy: false, msg: "" });
+        } else {
+          setPayState({ busy: false, msg: (data && data.message) || t("paymentFailed") });
+        }
+      } catch {
+        setPayState({ busy: false, msg: t("unknownError") });
+      }
+      return;
+    }
+
+    const method = "card";
+    let cardId = (current.payment && current.payment.cardId) || "";
+    if (method === "card" && !cardId) {
+      try {
+        const cr = await fetch(apiUrl("/api/cards"), { headers: authHeaders() });
+        const cd = await cr.json();
+        const list = cd && cd.success && Array.isArray(cd.data) ? cd.data : [];
+        const def = list.find((c) => c.isDefault) || list[0];
+        cardId = def ? def.id : "";
+      } catch {}
+      if (!cardId) {
+        setPayState({ busy: false, msg: t("chooseCardFirst") });
+        return;
+      }
+    }
+    try {
+      const res = await fetch(apiUrl(`/api/payments/orders/${orderId}/pay`), {
+        method: "POST",
+        headers: authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ method, cardId }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.data && data.data.order) {
+        setLive(data.data.order);
+        setStatus(data.data.order.status);
+        setPayState({ busy: false, msg: t("paid") });
+        await refetch();
+      } else {
+        setPayState({ busy: false, msg: (data && data.message) || t("paymentFailed") });
+      }
+    } catch {
+      setPayState({ busy: false, msg: t("unknownError") });
+    }
+  };
+
   const submitRating = async () => {
     if (!rating) { setRatingMsg(t("fieldRequired")); return; }
     setRatingMsg("");
@@ -113,7 +181,7 @@ export const OrderTracking = ({ orderData, onBack, onOpenChat, viewerRole }) => 
       if (!res.ok) throw new Error(data.message || "");
       setRated(true);
       setRatingMsg(t("success"));
-      await loadOrder();
+      await refetch();
     } catch (err) {
       setRatingMsg(err.message || t("unknownError"));
     }
@@ -134,7 +202,7 @@ export const OrderTracking = ({ orderData, onBack, onOpenChat, viewerRole }) => 
 
   return (
     <div style={{ display: "flex", justifyContent: "center", width: "100%", minHeight: "100vh", backgroundColor: theme.bg }}>
-      <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", width: "100%", maxWidth: "800px", backgroundColor: theme.bg, color: theme.text, fontFamily: theme.font.family, boxSizing: "border-box", padding: "24px 20px", position: "relative", boxShadow: "0 0 20px rgba(0,0,0,0.05)" }}>
+      <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", width: "100%", maxWidth: "100%", backgroundColor: theme.bg, color: theme.text, fontFamily: theme.font.family, boxSizing: "border-box", padding: "24px 20px", position: "relative", boxShadow: "0 0 20px rgba(0,0,0,0.05)" }}>
         <style>{`.custom-btn:active { transform: scale(0.98); }`}</style>
 
         <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "20px" }}>
@@ -222,7 +290,7 @@ export const OrderTracking = ({ orderData, onBack, onOpenChat, viewerRole }) => 
                 <div>
                   <h2 style={{ fontSize: "16px", fontWeight: "800", margin: "0 0 4px 0", color: theme.text }}>{master?.name || ""}</h2>
                   <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px" }}>
-                    <span style={{ color: theme.warning, fontWeight: "700", display: "flex", alignItems: "center", gap: "4px" }}><img src="https://api.iconify.design/lucide:star.svg?color=%23f59e0b&fill=%23f59e0b" width="13" height="13" alt="" />{master?.rating || "0"}</span>
+                    <span style={{ color: theme.warning, fontWeight: "700", display: "flex", alignItems: "center", gap: "4px" }}><img src="https://api.iconify.design/lucide:star.svg?color=%23059669&fill=%23059669" width="13" height="13" alt="" />{master?.rating || "0"}</span>
                     <span style={{ color: theme.textSecondary }}>({master?.reviewsCount || "0"})</span>
                   </div>
                 </div>
@@ -236,7 +304,7 @@ export const OrderTracking = ({ orderData, onBack, onOpenChat, viewerRole }) => 
                 </div>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: "11px", color: theme.textSecondary }}>{t("user")}</div>
-                  <div style={{ fontSize: "13px", fontWeight: "700", color: theme.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{current.user.name || current.user.phone}</div>
+                  <div style={{ fontSize: "13px", fontWeight: "700", color: theme.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{displayName(current.user.name, current.user.phone) || t("user")}</div>
                 </div>
               </div>
             )}
@@ -250,17 +318,32 @@ export const OrderTracking = ({ orderData, onBack, onOpenChat, viewerRole }) => 
 
             <div style={{ fontSize: "12px", color: theme.textSecondary, display: "flex", gap: "16px", flexWrap: "wrap" }}>
               <span>📦 {current.deliveryMethod === "self_dropoff" ? t("selfDropoff") : t("pickupByMaster")}</span>
-              <span style={{ display: "flex", alignItems: "center", gap: "5px" }}><img src="https://api.iconify.design/lucide:credit-card.svg?color=%2359656e" width="15" height="15" alt="" />{current.paymentMethod === "online" ? t("onlinePayment") : t("cashOnDelivery")}</span>
-              {current.paymentMethod === "online" && master?.bankCard && (
-                <span style={{ display: "flex", alignItems: "center", gap: "5px", color: theme.text }}><img src="https://api.iconify.design/lucide:credit-card.svg?color=%2359656e" width="15" height="15" alt="" />{master.bankCard}</span>
+              <span style={{ display: "flex", alignItems: "center", gap: "5px" }}><img src="https://api.iconify.design/lucide:credit-card.svg?color=%2359656e" width="15" height="15" alt="" />{current.paymentMethod === "payme" ? t("payme") : current.paymentMethod === "click" ? t("click") : current.paymentMethod === "cash_on_delivery" ? t("cashOnDelivery") : t("onlinePayment")}</span>
+              {current.paymentMethod !== "cash_on_delivery" && (
+                <span style={{ display: "flex", alignItems: "center", gap: "5px", fontWeight: "800", color: current.paymentStatus === "paid" ? theme.success : theme.warning }}>
+                  {current.paymentStatus === "paid" ? `✓ ${t("paid")}` : t("paymentPending")}
+                </span>
               )}
             </div>
 
+            {!isMasterViewer && current.paymentMethod !== "cash_on_delivery" && current.paymentStatus !== "paid" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px", backgroundColor: theme.bgSecondary, border: `1px solid ${theme.border}`, borderRadius: "10px", padding: "12px" }}>
+                <span style={{ fontSize: "12px", color: theme.textSecondary }}>{t("cardSecureHint")}</span>
+                {payState.msg && <span style={{ fontSize: "12px", fontWeight: "700", color: payState.msg === t("paid") ? theme.success : theme.error }}>{payState.msg}</span>}
+                <button onClick={payNow} disabled={payState.busy} className="custom-btn"
+                  style={{ backgroundColor: theme.primary, color: theme.textInverse, border: "none", borderRadius: "12px", padding: "13px", fontSize: "14px", fontWeight: "800", cursor: payState.busy ? "not-allowed" : "pointer", opacity: payState.busy ? 0.7 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+                  {payState.busy ? t("paymentProcessing") : `\u{1F4B3} ${t("payNow")}`}
+                </button>
+              </div>
+            )}
+
             <div style={{ display: "flex", gap: "12px" }}>
-              <a href={`tel:${master?.phone}`} aria-label={t("callMaster")}
+              {master?.phone && !isGuestPhone(master.phone) && (
+              <a href={`tel:${master.phone}`} aria-label={t("callMaster")}
                 style={{ flex: 1, backgroundColor: theme.bgSecondary, border: `1px solid ${theme.border}`, borderRadius: "12px", padding: "12px", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", textDecoration: "none" }}>
                 <img src="https://api.iconify.design/lucide:phone.svg?color=%23111111" alt="call" width="20" height="20" />
               </a>
+            )}
               <button onClick={openChatWithMaster} className="custom-btn"
                 style={{ flex: 1, backgroundColor: theme.bgSecondary, border: `1px solid ${theme.border}`, borderRadius: "12px", padding: "12px", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
                 <img src="https://api.iconify.design/lucide:message-circle.svg?color=%23111111" alt="chat" width="20" height="20" />
@@ -273,10 +356,10 @@ export const OrderTracking = ({ orderData, onBack, onOpenChat, viewerRole }) => 
               <h3 style={{ fontSize: "15px", fontWeight: "800", color: theme.text, margin: 0 }}>{t("success")} ✦</h3>
               <div style={{ display: "flex", gap: "6px" }}>
                 {[1, 2, 3, 4, 5].map((n) => (
-                  <button key={n} onClick={() => setRating(n)} className="custom-btn" style={{ background: "none", border: "none", cursor: "pointer", filter: rating >= n ? "none" : "grayscale(1)", opacity: rating >= n ? 1 : 0.4 }}><img src="https://api.iconify.design/lucide:star.svg?color=%23f59e0b&fill=%23f59e0b" width="26" height="26" alt="" /></button>
+                  <button key={n} onClick={() => setRating(n)} className="custom-btn" style={{ background: "none", border: "none", cursor: "pointer", filter: rating >= n ? "none" : "grayscale(1)", opacity: rating >= n ? 1 : 0.4 }}><img src="https://api.iconify.design/lucide:star.svg?color=%23059669&fill=%23059669" width="26" height="26" alt="" /></button>
                 ))}
               </div>
-              <input value={review} onChange={(e) => setReview(e.target.value)} placeholder={t("rejectionPlaceholder")}
+              <input name="reviewText" value={review} onChange={(e) => setReview(e.target.value)} placeholder={t("rejectionPlaceholder")}
                 style={{ width: "100%", padding: "10px 12px", borderRadius: "10px", border: `1px solid ${theme.border}`, fontSize: "13px", outline: "none", boxSizing: "border-box", backgroundColor: theme.bgSecondary, color: theme.text }} />
               {ratingMsg && <p style={{ margin: 0, fontSize: "12px", fontWeight: "600", color: ratingMsg === t("success") ? theme.success : theme.error }}>{ratingMsg}</p>}
               <button onClick={submitRating} className="custom-btn" style={{ backgroundColor: theme.primary, color: theme.textInverse, border: "none", borderRadius: "12px", padding: "13px", fontSize: "14px", fontWeight: "800", cursor: "pointer" }}>{t("confirm")}</button>
@@ -299,3 +382,5 @@ export const OrderTracking = ({ orderData, onBack, onOpenChat, viewerRole }) => 
 };
 
 export default OrderTracking;
+
+

@@ -110,6 +110,13 @@ const savedLimiter = makeLimiter({
   keyGenerator: userOrIpKey,
 });
 
+// AI tahlil (video/foto): foydalanuvchi bo'yicha 30 ta / daqiqa — tekin API'ga abuzedan saqlaydi.
+const aiLimiter = makeLimiter({
+  windowMs: 60 * 1000,
+  max: 30,
+  keyGenerator: userOrIpKey,
+});
+
 module.exports = {
   sendCodeLimiter,
   telegramStatusLimiter,
@@ -120,5 +127,6 @@ module.exports = {
   masterLimiter,
   userLimiter,
   savedLimiter,
+  aiLimiter,
   userOrIpKey,
 };

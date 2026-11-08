@@ -1,8 +1,14 @@
 # Dependencies
 node_modules/
 
+# Expo
+.expo/
+dist/
+*.expo
+
 # Build
 build/
+dist-ci/
 
 # Environments
 .env
@@ -17,8 +23,9 @@ react-tutorial/backend/uploads/
 # Testing
 coverage/
 
-# Local tooling metadata
+# Local tooling metadata (shaxsiy — repoga kirmaydi)
 .agents/
+.opencode/
 skills-lock.json
 
 # Misc

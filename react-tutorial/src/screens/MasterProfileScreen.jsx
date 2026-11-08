@@ -1,28 +1,29 @@
-import React, { useState, useEffect, useCallback } from "react";
+﻿import React, { useState, useEffect, useCallback } from "react";
 import { apiUrl, authHeaders } from "../services/api";
 import { useTheme } from "../theme/ThemeContext";
 import { useTranslation } from "../i18n/LanguageContext";
+import { formatWorkingHours, displayPhone, formatPrice } from "../utils/display";
+import { ReviewsSection } from "../components/ReviewsSection";
 
-export const MasterProfileScreen = ({ master, onBack, onOrder, onChat }) => {
+export const MasterProfileScreen = ({ master, masterId: masterIdProp, onBack, onOrder, onChat }) => {
   const { theme } = useTheme();
   const { t } = useTranslation();
   const [profile, setProfile] = useState(master || null);
 
   const load = useCallback(async () => {
-    const id = master?.id || master?._id;
+    const id = master?.id || master?._id || masterIdProp;
     if (!id) return;
     try {
       const res = await fetch(apiUrl(`/api/masters/${id}`), { headers: authHeaders() });
       const data = await res.json();
       if (res.ok && data.success && data.data) setProfile(data.data);
     } catch {}
-  }, [master?.id, master?._id]);
+  }, [master?.id, master?._id, masterIdProp]);
 
   useEffect(() => { load(); }, [load]);
 
   const d = profile || {};
   const name = d.name || t("master");
-  const short = (d.bankCard || "").replace(/^(\d{4}).*?(\d{4})$/, (m, a, b) => `${a} •••• ${b}`);
 
   const row = (label, value, money) =>
     value ? (
@@ -37,7 +38,7 @@ export const MasterProfileScreen = ({ master, onBack, onOrder, onChat }) => {
 
   return (
     <div style={{ display: "flex", justifyContent: "center", width: "100%", minHeight: "100vh", backgroundColor: theme.bg }}>
-      <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", width: "100%", maxWidth: "800px", backgroundColor: theme.bg, color: theme.text, fontFamily: theme.font.family, boxSizing: "border-box", padding: "20px 16px", position: "relative", boxShadow: "0 0 20px rgba(0,0,0,0.05)" }}>
+      <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", width: "100%", maxWidth: "100%", backgroundColor: theme.bg, color: theme.text, fontFamily: theme.font.family, boxSizing: "border-box", padding: "20px 16px", position: "relative", boxShadow: "0 0 20px rgba(0,0,0,0.05)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "20px" }}>
           <button onClick={onBack} aria-label={t("back")}
             style={{ backgroundColor: theme.surface, border: `1px solid ${theme.border}`, borderRadius: "50%", width: "40px", height: "40px", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: theme.text, fontSize: "18px", fontWeight: "bold", boxShadow: theme.shadowSm }}><img src={`https://api.iconify.design/lucide:chevron-left.svg?color=${encodeURIComponent(theme.text)}`} width="18" height="18" alt="" /></button>
@@ -51,8 +52,8 @@ export const MasterProfileScreen = ({ master, onBack, onOrder, onChat }) => {
           <div style={{ minWidth: 0 }}>
             <h2 style={{ fontSize: "18px", fontWeight: "800", margin: "0 0 4px 0", color: theme.text }}>{name}</h2>
             <div style={{ fontSize: "13px", color: theme.textSecondary, display: "flex", flexDirection: "column", gap: "2px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "4px" }}><img src={`https://api.iconify.design/lucide:phone.svg?color=${encodeURIComponent(theme.textSecondary)}`} width="14" height="14" alt="" />{d.phone || t("guestPhone")}</div>
-              <div style={{ display: "flex", alignItems: "center", gap: "4px" }}><img src="https://api.iconify.design/lucide:star.svg?color=%23f59e0b&fill=%23f59e0b" width="14" height="14" alt="" />{d.rating ?? 0}{d.reviewsCount ? ` (${d.reviewsCount})` : ""}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: "4px" }}><img src={`https://api.iconify.design/lucide:phone.svg?color=${encodeURIComponent(theme.textSecondary)}`} width="14" height="14" alt="" />{displayPhone(d.phone, t("guestPhone"))}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: "4px" }}><img src="https://api.iconify.design/lucide:star.svg?color=%23059669&fill=%23059669" width="14" height="14" alt="" />{d.rating ?? 0}{d.reviewsCount ? ` (${d.reviewsCount})` : ""}</div>
             </div>
           </div>
         </div>
@@ -61,11 +62,18 @@ export const MasterProfileScreen = ({ master, onBack, onOrder, onChat }) => {
           <h3 style={{ fontSize: "14px", fontWeight: "800", color: theme.text, margin: "0 0 8px 0" }}>{t("anketaData")}</h3>
           {row(t("masterExperience"), d.experience ? `${d.experience}+ ${t("masterYears")}` : null)}
           {row(t("masterDevices"), (d.devices || []).length ? d.devices.join(", ") : null)}
-          {row(t("masterPrice"), d.price ? `${Number(d.price).toLocaleString()} so'm` : null, true)}
-          {row(t("masterHours"), d.workingHours ? (typeof d.workingHours === "object" ? `${d.workingHours.open || ""} - ${d.workingHours.close || ""}` : d.workingHours) : null)}
+          {row(t("masterPrice"), d.price ? formatPrice(d.price, d.currency) : null, true)}
+          {row(t("masterHours"), d.workingHours ? formatWorkingHours(d.workingHours) : null)}
           {row(t("masterLocationLabel"), (typeof d.location === "string" ? d.location : d.location?.address))}
-          {row(t("masterCardInfo"), [d.cardholderName, short].filter(Boolean).join(" "))}
         </div>
+
+        {/* Reyting va sharhlar (haqiqiy backend'dan) */}
+        {(d.id || d._id || masterIdProp) && (
+          <ReviewsSection
+            masterId={d.id || d._id || masterIdProp}
+            style={{ marginTop: "16px" }}
+          />
+        )}
 
         <div style={{ display: "flex", gap: "12px", marginTop: "auto", paddingTop: "20px" }}>
           {onChat && (
@@ -86,3 +94,5 @@ export const MasterProfileScreen = ({ master, onBack, onOrder, onChat }) => {
 };
 
 export default MasterProfileScreen;
+
+

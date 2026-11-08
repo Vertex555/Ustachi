@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="uz">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#2e7d32" />
+    <meta
+      name="description"
+      content="Ustachi - qurilmalarni ta'mirlash uchun yaqin ustani topish platformasi"
+    />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <link rel="apple-touch-icon" href="/logo192.png" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&family=Nunito:wght@400;500;600;700;800&family=Poppins:wght@400;500;600;700;800&family=Roboto:wght@400;500;700&family=Roboto+Mono:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <title>Ustachi</title>
+    <script>
+      (function () {
+        try {
+          var mode = localStorage.getItem("ustachi_theme") || "light";
+          var isDark = mode === "dark";
+          var custom = {};
+          try {
+            var raw = localStorage.getItem("ustachi_custom_colors");
+            if (raw) custom = JSON.parse(raw) || {};
+          } catch (e) {}
+          var bg = "light";
+          var bodyBg = "#F4F8F5";
+          var text = "#0C2019";
+          var accent = "#059669";
+          var surface = "#FFFFFF";
+          var border = "#DFE9E2";
+          if (isDark) {
+            bg = "dark";
+            bodyBg = "#081712";
+            text = "#EAF3EE";
+            accent = "#10B981";
+            surface = "#0E231B";
+            border = "rgba(255,255,255,0.09)";
+          }
+          if (custom.bg) {
+            bodyBg = String(custom.bg);
+          }
+          if (custom.accent) {
+            accent = String(custom.accent);
+          }
+          if (custom.surface) {
+            surface = String(custom.surface);
+          }
+          var r = document.documentElement;
+          r.classList.add("ust-theme-" + bg);
+          r.style.setProperty("--ustach-bg", bodyBg);
+          r.style.setProperty("--ustach-surface", surface);
+          r.style.setProperty("--ustach-accent", accent);
+          r.style.setProperty("--ustach-text", text);
+          r.style.setProperty("--ustach-border", border);
+          document.body.style.backgroundColor = bodyBg;
+          document.body.style.color = text;
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+    <script type="module" src="/src/index.jsx"></script>
+  </body>
+</html>

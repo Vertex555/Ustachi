@@ -2,6 +2,7 @@ import React from "react";
 import { Navigation } from "lucide-react";
 import { useTheme } from "../theme/ThemeContext";
 import { useTranslation } from "../i18n/LanguageContext";
+import { UButton } from "../components/ui";
 import gpsSvg from "../animations/GPS Navigation.svg";
 
 export const LocationAccess = ({ onNext }) => {
@@ -55,35 +56,6 @@ export const LocationAccess = ({ onNext }) => {
   const animationContainerStyle = { width: "100%", maxWidth: "380px", height: "clamp(200px, 38vh, 340px)", display: "flex", alignItems: "center", justifyContent: "center" };
   const imageStyle = { width: "100%", height: "100%", objectFit: "contain" };
   const buttonsWrapperStyle = { width: "100%", maxWidth: "400px", display: "flex", flexDirection: "column", gap: "1vh" };
-  
-  const primaryButtonStyle = {
-    width: "100%",
-    backgroundColor: theme.primary,
-    color: theme.textInverse,
-    fontWeight: theme.font.bold,
-    fontSize: "clamp(0.95rem, 2.2vw, 1.1rem)",
-    padding: "clamp(10px, 1.8vh, 15px)",
-    borderRadius: theme.radius.xl,
-    border: "none",
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: "0.5em",
-    boxShadow: `0 0.4em 1em ${theme.mode === "dark" ? "rgba(16,185,129,0.3)" : "rgba(46,125,50,0.3)"}`,
-    transition: theme.transition.normal,
-  };
-
-  const secondaryButtonStyle = {
-    width: "100%",
-    backgroundColor: "transparent",
-    border: "none",
-    color: theme.textSecondary,
-    fontWeight: theme.font.bold,
-    fontSize: "clamp(0.9rem, 2vw, 1rem)",
-    padding: "6px",
-    cursor: "pointer"
-  };
 
   return (
     <div style={containerStyle}>
@@ -100,14 +72,14 @@ export const LocationAccess = ({ onNext }) => {
       </div>
 
       <div style={buttonsWrapperStyle}>
-        <button onClick={handleAllowLocation} style={primaryButtonStyle}>
-          <Navigation size="1.1em" color={theme.textInverse} style={{ transform: "rotate(45deg)" }} />
+        <UButton onClick={handleAllowLocation} full size="lg">
+          <Navigation size={18} style={{ transform: "rotate(45deg)" }} />
           {t("allowLocation")}
-        </button>
+        </UButton>
 
-        <button onClick={onNext} style={secondaryButtonStyle}>
+        <UButton onClick={onNext} variant="ghost" full>
           {t("notNow")}
-        </button>
+        </UButton>
       </div>
     </div>
   );

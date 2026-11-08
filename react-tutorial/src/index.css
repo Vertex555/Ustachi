@@ -1,12 +1,12 @@
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto',
+    'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #f4f4f4;
-  color: #111111;
+  background-color: var(--ustach-bg, #F4F8F5);
+  color: var(--ustach-text, #0C2019);
+  transition: background-color 0.25s cubic-bezier(0.22,1,0.36,1), color 0.25s ease;
 }
 
 * {
@@ -25,19 +25,435 @@ html {
   -moz-osx-font-smoothing: grayscale;
 }
 
-body {
-  margin: 0;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  background-color: #FFFFFF;
-  color: #0F172A;
-  transition: background-color 0.25s ease, color 0.25s ease;
+::selection {
+  background-color: rgba(5,150,105,0.22);
+  color: #065F46;
 }
 
-::selection {
-  background-color: rgba(5,150,105,0.2);
-  color: #065F46;
+#root {
+  min-height: 100vh;
+}
+
+/* ===== Responsive laptop layout ===== */
+#root {
+  width: 100%;
+}
+
+/* ===== Glass utilities (zamonaviy glassmorphism) ===== */
+.ust-glass {
+  background: var(--ustach-glass-bg, rgba(255,255,255,0.72));
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  border: 1px solid var(--ustach-glass-border, rgba(255,255,255,0.9));
+  border-radius: var(--ustach-radius-lg, 18px);
+  box-shadow: var(--ustach-glass-shadow, 0 2px 6px rgba(12,32,25,0.05), 0 12px 32px rgba(12,32,25,0.08));
+  transition: transform 0.18s cubic-bezier(0.22,1,0.36,1), box-shadow 0.25s ease, border-color 0.2s ease;
+}
+.ust-glass:hover {
+  box-shadow: var(--ustach-glass-shadow-hover, 0 4px 10px rgba(12,32,25,0.06), 0 18px 44px rgba(12,32,25,0.12));
+  border-color: var(--ustach-glass-border, rgba(255,255,255,0.95));
+}
+.ust-glass-active:active {
+  box-shadow: var(--ustach-glass-shadow-active, inset 0 2px 6px rgba(12,32,25,0.10));
+  transform: scale(0.988);
+}
+
+/* ===== Bento grid ===== */
+.ust-bento {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  width: 100%;
+}
+@media (min-width: 769px) {
+  .ust-bento {
+    grid-template-columns: repeat(12, 1fr);
+  }
+  .ust-bento-col-3 { grid-column: span 3; }
+  .ust-bento-col-4 { grid-column: span 4; }
+  .ust-bento-col-5 { grid-column: span 5; }
+  .ust-bento-col-6 { grid-column: span 6; }
+  .ust-bento-col-7 { grid-column: span 7; }
+  .ust-bento-col-8 { grid-column: span 8; }
+  .ust-bento-col-9 { grid-column: span 9; }
+  .ust-bento-col-12 { grid-column: span 12; }
+}
+@media (max-width: 768px) {
+  .ust-bento-col-3, .ust-bento-col-4, .ust-bento-col-5, .ust-bento-col-6,
+  .ust-bento-col-7, .ust-bento-col-8, .ust-bento-col-9, .ust-bento-col-12 {
+    grid-column: span 1;
+  }
+}
+
+/* ===== Sidebar ===== */
+.ust-sidebar {
+  font-family: inherit;
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+}
+.ust-sidebar button {
+  font-family: inherit;
+}
+/* Desktop: aniq "pill" faol holat — gradient emerald */
+.ust-sidebar-nav-item-active {
+  background: var(--ustach-gradient-soft, linear-gradient(135deg, rgba(5,150,105,0.14), rgba(16,185,129,0.10))) !important;
+  color: var(--ustach-accent, #059669) !important;
+}
+
+/* ===== Tez harakatlar klasteri (kalkulyator / promo / bildirishnoma) ===== */
+.ust-quick-actions {
+  position: fixed;
+  top: 14px;
+  right: 16px;
+  z-index: 150;
+  pointer-events: none;
+}
+.ust-quick-actions > * {
+  pointer-events: auto;
+}
+.ust-quick-actions .ust-qa-btn:hover {
+  border-color: var(--ustach-accent, #059669);
+}
+/* Telefonda: pastki tab-bar ustida suzuvchi FAB guruhiga aylanadi */
+@media (max-width: 768px) {
+  .ust-quick-actions {
+    top: auto;
+    right: 12px;
+    bottom: 88px;
+  }
+  .ust-quick-actions .ust-qa-label {
+    display: none;
+  }
+  .ust-quick-actions .ust-qa-btn {
+    width: 44px;
+    height: 44px;
+    padding: 0 !important;
+    justify-content: center;
+    border-radius: 50% !important;
+  }
+  /* Bildirishnoma paneli telefonda FAB ustidan emas, pastdan ochiladi */
+  .ust-quick-actions .ust-notif-pop {
+    top: auto !important;
+    bottom: 52px !important;
+    right: 0 !important;
+  }
+}
+
+
+@media (max-width: 768px) {
+  .ust-sidebar {
+    flex-direction: row !important;
+    width: auto !important;
+    max-width: none !important;
+    position: fixed !important;
+    top: auto !important;
+    left: 10px !important;
+    bottom: 12px !important;
+    right: 10px !important;
+    height: auto !important;
+    flex: initial !important;
+    flex: 0 0 auto !important;
+    padding: 8px 8px !important;
+    border-right: none !important;
+    border: 1px solid var(--ustach-glass-border, rgba(255,255,255,0.6)) !important;
+    border-radius: 24px !important;
+    justify-content: space-around !important;
+    /* Zamonaviy suzuvchi tab-bar: yumshoq, chuqur soya */
+    box-shadow: 0 8px 30px rgba(12,32,25,0.16), 0 2px 8px rgba(12,32,25,0.10) !important;
+    background: var(--ustach-glass-bg, rgba(255,255,255,0.9)) !important;
+    backdrop-filter: blur(18px) saturate(1.3) !important;
+    -webkit-backdrop-filter: blur(18px) saturate(1.3) !important;
+    z-index: 100;
+  }
+  .ust-sidebar > div:first-child {
+    display: none !important;
+  }
+  .ust-sidebar > div:nth-child(2) {
+    flex-direction: row !important;
+    flex: 1 1 auto !important;
+    justify-content: space-around !important;
+    align-items: stretch !important;
+    overflow: visible !important;
+    gap: 0 !important;
+    padding: 0 !important;
+  }
+  .ust-sidebar > div:nth-child(2) > button,
+  .ust-sidebar > div:nth-child(3) > button {
+    width: auto !important;
+    height: auto !important;
+    flex: 1 1 0 !important;
+    flex-direction: column !important;
+    gap: 2px !important;
+    justify-content: center !important;
+    align-items: center !important;
+    padding: 6px 2px !important;
+    border-radius: 16px !important;
+    min-width: 0 !important;
+    position: relative !important;
+  }
+  .ust-sidebar > div:nth-child(2) > button > img,
+  .ust-sidebar > div:nth-child(3) > button > img {
+    width: 20px !important;
+    height: 20px !important;
+    transition: transform 0.2s cubic-bezier(0.22,1,0.36,1) !important;
+  }
+  .ust-sidebar > div:nth-child(2) > button:active > img,
+  .ust-sidebar > div:nth-child(3) > button:active > img {
+    transform: scale(0.88) !important;
+  }
+  .ust-sidebar > div:nth-child(2) > button > span,
+  .ust-sidebar > div:nth-child(3) > button > span {
+    font-size: 9.5px !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    max-width: 100% !important;
+  }
+  .ust-sidebar > div:nth-child(2) > button > div:not(.ust-badge-pulse) {
+    display: none !important;
+  }
+  /* Faol holat — gradient "pill" orqa fon (eski neumo inset o'rniga) */
+  .ust-sidebar > div:nth-child(2) > button.ust-tab-active,
+  .ust-sidebar > div:nth-child(3) > button.ust-tab-active {
+    background: var(--ustach-gradient, linear-gradient(135deg, #059669, #10B981)) !important;
+    color: #fff !important;
+    box-shadow: 0 4px 12px rgba(5,150,105,0.35) !important;
+  }
+  .ust-sidebar > div:nth-child(2) > button.ust-tab-active > span,
+  .ust-sidebar > div:nth-child(3) > button.ust-tab-active > span {
+    color: #fff !important;
+    font-weight: 700 !important;
+  }
+  .ust-sidebar > div:nth-child(2) > button.ust-tab-active > img,
+  .ust-sidebar > div:nth-child(3) > button.ust-tab-active > img {
+    filter: brightness(0) invert(1) !important;
+  }
+  .ust-sidebar > div:nth-child(2) > button > .ust-tab-pill,
+  .ust-sidebar > div:nth-child(3) > button > .ust-tab-pill {
+    display: none;
+  }
+  .ust-sidebar > div:nth-child(2) > button > .ust-badge-pulse,
+  .ust-sidebar > div:nth-child(3) > button > .ust-badge-pulse {
+    top: 2px !important;
+    right: calc(50% - 16px) !important;
+    border: 1.5px solid var(--ustach-bg, #F4F8F5) !important;
+  }
+  .ust-sidebar > div:nth-child(3) {
+    flex-direction: row !important;
+    flex: 0 0 auto !important;
+    justify-content: space-around !important;
+    gap: 0 !important;
+    padding-top: 2px !important;
+    padding-left: 0 !important;
+    border-top: none !important;
+  }
+  .ust-sidebar > button {
+    display: none !important;
+  }
+  .ust-main-content {
+    margin-left: 0 !important;
+    padding-bottom: 100px !important;
+  }
+}
+
+/* Laptop ekranida listlarni ko'p ustunli qilish */
+.ust-list-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+@media (max-width: 560px) {
+  .filter-label { display: none; }
+}
+@media (min-width: 769px) {
+  .ust-list-grid {
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    align-items: start;
+  }
+}
+
+/* ===== Global animatsiyalar ===== */
+@keyframes ustFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes ustFadeInUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes ustScaleIn {
+  from { opacity: 0; transform: scale(0.94); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes ustMsgInLeft {
+  from { opacity: 0; transform: translateX(-16px) scale(0.96); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+@keyframes ustMsgInRight {
+  from { opacity: 0; transform: translateX(16px) scale(0.96); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+@keyframes ustBadgePulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.25); }
+  100% { transform: scale(1); }
+}
+
+@keyframes ustSpin {
+  to { transform: rotate(360deg); }
+}
+.ust-spin { animation: ustSpin 0.9s linear infinite; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.35; transform: scale(0.9); }
+  50% { opacity: 1; transform: scale(1.1); }
+}
+
+@keyframes ustTabInRight {
+  from { opacity: 0; transform: translateX(28px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes ustTabInLeft {
+  from { opacity: 0; transform: translateX(-28px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes ustPopIn {
+  0% { opacity: 0; transform: scale(0.9) translateY(8px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes ustShimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes ustSlideDown {
+  from { opacity: 0; transform: translateY(-12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes ustToastIn {
+  from { opacity: 0; transform: translateY(-16px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.ust-screen { animation: ustFadeIn 0.32s ease-out both; }
+.ust-screen-up { animation: ustFadeInUp 0.38s cubic-bezier(0.22,1,0.36,1) both; }
+.ust-scale { animation: ustScaleIn 0.24s cubic-bezier(0.22,1,0.36,1) both; }
+.ust-msg-left { animation: ustMsgInLeft 0.26s ease-out both; }
+.ust-msg-right { animation: ustMsgInRight 0.26s ease-out both; }
+.ust-badge-pulse { animation: ustBadgePulse 1.4s ease-in-out infinite; }
+.ust-tab-right { animation: ustTabInRight 0.3s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.ust-tab-left { animation: ustTabInLeft 0.3s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.ust-pop { animation: ustPopIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.ust-slide-down { animation: ustSlideDown 0.28s cubic-bezier(0.22,1,0.36,1) both; }
+.ust-toast-in { animation: ustToastIn 0.3s cubic-bezier(0.22,1,0.36,1) both; }
+
+/* Skeleton shimmer (yuklanish) */
+.ust-skel {
+  background: linear-gradient(90deg, var(--ustach-surface, #fff) 25%, var(--ustach-surface-hover, #f2f6f3) 37%, var(--ustach-surface, #fff) 63%);
+  background-size: 200% 100%;
+  animation: ustShimmer 1.4s ease-in-out infinite;
+  border-radius: 12px;
+}
+
+/* Settings: mavzu toggle animatsiyasi */
+.ust-theme-toggle:hover .ust-toggle-knob { transform: scale(1.08); }
+.ust-theme-toggle:active .ust-toggle-knob { transform: scale(0.92); }
+.ust-theme-toggle:hover {
+  box-shadow: 0 0 20px var(--ustach-ring, rgba(5,150,105,0.35));
+}
+
+button, a, .custom-btn {
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.15s cubic-bezier(0.22,1,0.36,1), box-shadow 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+}
+button:active, .custom-btn:active {
+  transform: translateY(1px) !important;
+}
+/* Skill accessibility: fokus ko'rinishi majburiy — zamonaviy emerald ring */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--ustach-accent, #059669);
+  outline-offset: 2px;
+}
+
+/* ===== Zamonaviy qatlamli kartalar (neumorph klasslari saqlangan) ===== */
+.ust-neumo {
+  background: var(--ustach-surface, #FFFFFF);
+  border: 1px solid var(--ustach-border, #DFE9E2);
+  border-radius: var(--ustach-neumo-radius, 16px);
+  box-shadow: var(--ustach-neumo-light, 0 2px 4px rgba(12,32,25,0.05), 0 6px 16px rgba(12,32,25,0.08));
+  transition: box-shadow 0.2s cubic-bezier(0.22,1,0.36,1), transform 0.15s ease, border-color 0.2s ease;
+}
+.ust-neumo:hover {
+  box-shadow: var(--ustach-neumo-light-hover, 0 4px 8px rgba(12,32,25,0.05), 0 14px 32px rgba(12,32,25,0.10));
+  border-color: var(--ustach-surface-hover, #EDF3EF);
+}
+/* Bosilganda yumshoq "cho'kish" effekt */
+.ust-neumo:active,
+.ust-neumo-active {
+  box-shadow: var(--ustach-neumo-pressed, inset 0 2px 6px rgba(12,32,25,0.10)) !important;
+  transform: scale(0.99);
+}
+/* Input / qidiruv maydonlari — ichki chuqurlik */
+.ust-neumo-inset {
+  background: var(--ustach-neumo-inset-bg, #EDF3EF);
+  border-radius: var(--ustach-neumo-radius, 16px);
+  box-shadow: inset 0 1px 3px rgba(12,32,25,0.08);
+  border: 1px solid var(--ustach-border, #DFE9E2);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.ust-neumo-inset:focus-within {
+  border-color: var(--ustach-accent, #059669);
+  box-shadow: inset 0 1px 3px rgba(12,32,25,0.06), 0 0 0 3px var(--ustach-ring, rgba(5,150,105,0.30));
+}
+.ust-neumo:focus-visible {
+  outline: 2px solid var(--ustach-accent, #059669);
+  outline-offset: 3px;
+}
+
+/* Gradient brend yuzasi (hero bannerlar, faol tugmalar) */
+.ust-grad {
+  background: var(--ustach-gradient, linear-gradient(135deg, #059669, #10B981));
+  color: #fff;
+}
+
+/* ===== Custom scrollbar ===== */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(11,61,46,0.18);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(11,61,46,0.32); }
+[data-theme="dark"] ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.14); }
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.24); }
+
+@media (prefers-reduced-motion: reduce) {
+  .ust-screen, .ust-screen-up, .ust-scale, .ust-msg-left, .ust-msg-right, .ust-badge-pulse,
+  .ust-tab-left, .ust-tab-right, .ust-pop, .ust-slide-down, .ust-toast-in, .ust-skel {
+    animation: none !important;
+  }
+  .ust-neumo, .ust-neumo:hover, .ust-neumo:active, .ust-neumo-active,
+  .ust-neumo-inset, .ust-neumo-inset:focus-within,
+  button, a, .custom-btn {
+    transition: none !important;
+    animation: none !important;
+  }
+  .ust-neumo:active, .ust-neumo-active, button:active, .custom-btn:active {
+    transform: none !important;
+  }
 }

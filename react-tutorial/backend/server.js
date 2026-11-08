@@ -1,5 +1,10 @@
 require("dotenv").config();
 
+// Production'da CORS_ORIGIN majburiy — aks holda API hamma joyga ochiq qoladi.
+if (process.env.NODE_ENV === "production" && !(process.env.CORS_ORIGIN || "").trim()) {
+  throw new Error("NODE_ENV=production bo'lsa, .env dagi CORS_ORIGIN ni o'rnatish shart");
+}
+
 const path = require("path");
 const express = require("express");
 const cors = require("cors");
@@ -81,6 +86,14 @@ app.use("/api/users", require("./src/routes/user.routes"));
 app.use("/api/masters", require("./src/routes/master.routes"));
 app.use("/api/orders", require("./src/routes/order.routes"));
 app.use("/api/chat", require("./src/routes/chat.routes"));
+app.use("/api/ai", require("./src/routes/ai.routes"));
+app.use("/api/cards", require("./src/routes/card.routes"));
+app.use("/api/feedback", require("./src/routes/feedback.routes"));
+app.use("/api/payments", require("./src/routes/payment.routes"));
+app.use("/api/push", require("./src/routes/push.routes"));
+app.use("/api/admin", require("./src/routes/admin.routes"));
+app.use("/api/notifications", require("./src/routes/notification.routes"));
+app.use("/api/catalog", require("./src/routes/catalog.routes"));
 
 // Topilmagan yo'nalishlar va xatolarni boshqarish
 app.use(notFound);
@@ -121,6 +134,10 @@ process.on("unhandledRejection", (reason) => {
 
 connectDB()
   .then(() => {
+    const { ensureSupportIdentity } = require("./src/controllers/admin.controller");
+    ensureSupportIdentity().catch((err) => {
+      console.error("Support identifikatsiyasini yaratishda xatolik:", err.message);
+    });
     startLinkListener();
     httpServer = app.listen(PORT, () => {
       console.log(`Server ishga tushdi: http://localhost:${PORT}`);

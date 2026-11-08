@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { ChevronLeft, Delete, Loader2, CheckCircle2 } from "lucide-react";
+import { Delete, Loader2, CheckCircle2 } from "lucide-react";
 import { apiUrl } from "../services/api";
 import { useTheme } from "../theme/ThemeContext";
 import { useTranslation } from "../i18n/LanguageContext";
+import { useRaise } from "../theme/useRaise";
+import { UBackBtn } from "../components/ui";
 
 export const VerificationScreen = ({ phone, devCode, onBack, onVerify }) => {
   const { theme } = useTheme();
@@ -12,6 +14,7 @@ export const VerificationScreen = ({ phone, devCode, onBack, onVerify }) => {
   const [error, setError] = useState("");
   const [isSuccess, setIsSuccess] = useState(false);
   const [successIndex, setSuccessIndex] = useState(-1);
+  const raiseBtn = useRaise(theme, "sm");
 
   // 4 ta raqam to'lganda avtomatik backendga tekshiruvga yuborish
   useEffect(() => {
@@ -99,13 +102,7 @@ export const VerificationScreen = ({ phone, devCode, onBack, onVerify }) => {
       textAlign: "center"
     }}>
       <div style={{ textAlign: "left" }}>
-        <button
-          onClick={onBack}
-          disabled={isLoading || isSuccess}
-          style={{ background: "none", border: "none", cursor: "pointer", padding: "4px 0", color: theme.text }}
-        >
-          <ChevronLeft size={28} />
-        </button>
+        <UBackBtn onClick={onBack} disabled={isLoading || isSuccess} />
       </div>
 
       <div style={{ margin: "10px 0" }}>
@@ -154,13 +151,13 @@ export const VerificationScreen = ({ phone, devCode, onBack, onVerify }) => {
                   color: isActiveSuccess ? theme.primary : theme.text,
                   boxShadow: isActiveSuccess
                     ? `0 6px 16px rgba(46, 125, 50, 0.2)`
-                    : theme.shadowSm,
+                    : theme.raiseSm.boxShadow,
                   transform: successIndex === index ? "scale(1.1)" : "scale(1)",
                   transition: "all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275)"
                 }}
               >
                 {isLoading && index === 3 ? (
-                  <Loader2 size={24} style={{ animation: "spin 1s linear infinite" }} />
+                  <Loader2 size={24} className="ust-spin" style={{ color: theme.primary }} />
                 ) : isSuccess && index === 3 ? (
                   <CheckCircle2 size={28} color={theme.primary} />
                 ) : (
@@ -214,8 +211,9 @@ export const VerificationScreen = ({ phone, devCode, onBack, onVerify }) => {
               fontWeight: "600",
               color: theme.text,
               cursor: "pointer",
-              boxShadow: theme.shadowSm
+              ...raiseBtn.style,
             }}
+            {...raiseBtn.bind}
           >
             {num}
           </button>
@@ -234,8 +232,9 @@ export const VerificationScreen = ({ phone, devCode, onBack, onVerify }) => {
             fontWeight: "600",
             color: theme.text,
             cursor: "pointer",
-            boxShadow: theme.shadowSm
+            ...raiseBtn.style,
           }}
+          {...raiseBtn.bind}
         >
           0
         </button>
@@ -251,8 +250,9 @@ export const VerificationScreen = ({ phone, devCode, onBack, onVerify }) => {
             alignItems: "center",
             justifyContent: "center",
             cursor: "pointer",
-            boxShadow: theme.shadowSm
+            ...raiseBtn.style,
           }}
+          {...raiseBtn.bind}
         >
           <Delete size={24} color={theme.text} />
         </button>

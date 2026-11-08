@@ -3,6 +3,8 @@ import { apiUrl, authHeaders } from "../services/api";
 import { useTheme } from "../theme/ThemeContext";
 import { useTranslation } from "../i18n/LanguageContext";
 import { fetchSavedMasters } from "../services/savedMasters";
+import { displayPhone, isGuestPhone } from "../utils/display";
+import { ConfirmLogoutModal } from "../components/ConfirmLogoutModal";
 
 export const UserProfile = ({
   user,
@@ -13,6 +15,8 @@ export const UserProfile = ({
   onSupport,
   onLogout,
   onSaveProfile,
+  onFeedback,
+  onCards,
 }) => {
   const { theme } = useTheme();
   const { t } = useTranslation();
@@ -27,10 +31,11 @@ export const UserProfile = ({
   const [avatar, setAvatar] = useState(user?.photo || "");
   const avatarInputRef = useRef(null);
 
-  const [newPhone, setNewPhone] = useState(user?.phone || "");
+  const [newPhone, setNewPhone] = useState((user?.phone && !isGuestPhone(user?.phone)) ? user?.phone : "+998 ");
   const [phoneError, setPhoneError] = useState("");
+  const [confirmLogout, setConfirmLogout] = useState(false);
 
-  const displayPhone = user?.phone || t("guestPhone");
+  const displayPhoneValue = displayPhone(user?.phone, t("guestPhone"));
 
   const formatPhoneNumber = (value) => {
     const numbers = value.replace(/\D/g, "");
@@ -59,7 +64,7 @@ export const UserProfile = ({
   };
 
   const openEdit = () => {
-    setNewPhone(user?.phone || "+998 ");
+    setNewPhone((user?.phone && !isGuestPhone(user?.phone)) ? user?.phone : "+998 ");
     setPhoneError("");
     setEditing(true);
   };
@@ -163,13 +168,15 @@ export const UserProfile = ({
   const navItems = [
     { key: "orders", label: t("myOrders"), icon: "package", action: onMyOrders },
     { key: "saved", label: t("savedMasters"), icon: "bookmark", action: onSaved },
+    { key: "cards", label: t("myCards"), icon: "credit-card", action: onCards },
     { key: "settings", label: t("settings"), icon: "settings", action: onSettings },
     { key: "support", label: t("helpSupport"), icon: "life-buoy", action: onSupport },
-  ];
+    { key: "feedback", label: t("feedback"), icon: "message-square", action: onFeedback },
+  ].filter((i) => i.action);
 
   const menuItem = (item) => (
-    <button key={item.key} onClick={item.action} className="custom-btn"
-      style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "14px 16px", backgroundColor: theme.surface, border: `1px solid ${theme.border}`, borderRadius: theme.radius.md, cursor: "pointer", color: theme.text }}>
+    <button key={item.key} onClick={item.action} className="custom-btn ust-neumo"
+      style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "14px 16px", backgroundColor: theme.neumorphSurface, border: "none", borderRadius: theme.neumorph.radius, cursor: "pointer", color: theme.text }}>
       <img src={`https://api.iconify.design/lucide:${item.icon}.svg?color=${encodeURIComponent(theme.textSecondary)}`} width="20" height="20" alt="" />
       <span style={{ flex: 1, textAlign: "left", fontSize: "14px", fontWeight: "600", color: theme.text }}>{item.label}</span>
       <img src={`https://api.iconify.design/lucide:chevron-right.svg?color=${encodeURIComponent(theme.textTertiary)}`} width="18" height="18" alt="" />
@@ -179,12 +186,12 @@ export const UserProfile = ({
   return (
     <div style={{ width: "100%", fontFamily: theme.font.family }}>
       <style>{`.custom-btn:active { transform: scale(0.98); }`}</style>
-      <div style={{ width: "100%", maxWidth: "800px", margin: "0 auto", boxSizing: "border-box", padding: "16px" }}>
+      <div style={{ width: "100%", maxWidth: "100%", margin: "0 auto", boxSizing: "border-box", padding: "16px" }}>
         {/* Yuqori: Sarlavha + Edit Profile */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
           <h1 style={{ fontSize: "18px", fontWeight: "800", margin: 0, color: theme.text }}>{t("myProfile")}</h1>
-          <button onClick={openEdit} className="custom-btn"
-            style={{ backgroundColor: theme.surface, border: `1px solid ${theme.border}`, color: theme.primary, padding: "9px 16px", borderRadius: "20px", fontSize: "13px", fontWeight: "700", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}>
+          <button onClick={openEdit} className="custom-btn ust-neumo"
+            style={{ backgroundColor: theme.neumorphSurface, border: "none", color: theme.primary, padding: "9px 16px", borderRadius: "20px", fontSize: "13px", fontWeight: "700", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}>
             <img src="https://api.iconify.design/lucide:pen-square.svg?color=%23059669" width="14" height="14" alt="" />
             {t("editProfile")}
           </button>
@@ -194,11 +201,11 @@ export const UserProfile = ({
           <div style={{ backgroundColor: theme.successLight, color: theme.success, padding: "10px 14px", borderRadius: theme.radius.md, fontSize: "13px", fontWeight: "700", marginBottom: "12px", textAlign: "center" }}>{savedMsg}</div>
         )}
 
-        {/* Profil kartasi */}
-        <div style={{ backgroundColor: theme.surface, border: `1px solid ${theme.border}`, borderRadius: theme.radius.lg, padding: "20px", display: "flex", alignItems: "center", gap: "16px", boxShadow: theme.shadowSm }}>
+        {/* Profil kartasi � ko'tarilgan (raised) */}
+        <div className="ust-neumo" style={{ backgroundColor: theme.neumorphSurface, border: "none", borderRadius: theme.neumorph.radiusLg, padding: "20px", display: "flex", alignItems: "center", gap: "16px" }}>
           <div onClick={() => avatarInputRef.current && avatarInputRef.current.click()} title={t("uploadPhoto")} style={{ width: "76px", height: "76px", borderRadius: "50%", backgroundColor: theme.primary, color: theme.textInverse, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "30px", fontWeight: "800", flexShrink: 0, position: "relative", cursor: "pointer" }}>
             {avatar ? <img src={avatar} alt="avatar" style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }} /> : initial}
-            <div style={{ position: "absolute", bottom: "2px", right: "2px", width: "26px", height: "26px", borderRadius: "50%", backgroundColor: theme.primary, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", border: `2px solid ${theme.surface}`, boxSizing: "border-box" }}>
+            <div style={{ position: "absolute", bottom: "2px", right: "2px", width: "26px", height: "26px", borderRadius: "50%", backgroundColor: theme.primary, color: theme.textInverse, display: "flex", alignItems: "center", justifyContent: "center", border: `2px solid ${theme.surface}`, boxSizing: "border-box" }}>
               <img src="https://api.iconify.design/lucide:camera.svg?color=%23ffffff" width="13" height="13" alt="" />
             </div>
           </div>
@@ -206,7 +213,7 @@ export const UserProfile = ({
           <div style={{ minWidth: 0 }}>
             <h2 style={{ fontSize: "18px", fontWeight: "800", margin: "0 0 4px 0", color: theme.text }}>{name || user?.name || t("user")}</h2>
             <div style={{ fontSize: "13px", color: theme.textSecondary, display: "flex", flexDirection: "column", gap: "2px" }}>
-              <span style={{ display: "flex", alignItems: "center", gap: "4px" }}><img src={`https://api.iconify.design/lucide:phone.svg?color=${encodeURIComponent(theme.textSecondary)}`} width="13" height="13" alt="" />{displayPhone}</span>
+              <span style={{ display: "flex", alignItems: "center", gap: "4px" }}><img src={`https://api.iconify.design/lucide:phone.svg?color=${encodeURIComponent(theme.textSecondary)}`} width="13" height="13" alt="" />{displayPhoneValue}</span>
               <span style={{ display: "flex", alignItems: "center", gap: "4px" }}><img src={`https://api.iconify.design/lucide:mail.svg?color=${encodeURIComponent(theme.textSecondary)}`} width="13" height="13" alt="" />{email || ""}</span>
             </div>
             {avatar && (
@@ -222,7 +229,7 @@ export const UserProfile = ({
             { value: savedCount, label: t("savedMasters") },
             { value: stats.reviewsGiven, label: t("reviewsGiven") },
           ].map((s, i) => (
-            <div key={i} style={{ flex: 1, backgroundColor: theme.surface, border: `1px solid ${theme.border}`, borderRadius: theme.radius.md, padding: "12px", textAlign: "center" }}>
+            <div key={i} className="ust-neumo" style={{ flex: 1, backgroundColor: theme.neumorphSurface, border: "none", borderRadius: theme.neumorph.radius, padding: "12px", textAlign: "center" }}>
               <div style={{ fontSize: "22px", fontWeight: "900", color: theme.primary }}>{s.value}</div>
               <div style={{ fontSize: "11px", color: theme.textSecondary, fontWeight: "600", marginTop: "2px" }}>{s.label}</div>
             </div>
@@ -232,35 +239,41 @@ export const UserProfile = ({
         {/* Menyu */}
         <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
           {navItems.map(menuItem)}
-          <button onClick={onLogout} className="custom-btn"
-            style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "14px 16px", backgroundColor: theme.surface, border: `1px solid ${theme.errorLight}`, borderRadius: theme.radius.md, cursor: "pointer", color: theme.error }}>
+          <button onClick={() => setConfirmLogout(true)} className="custom-btn"
+            style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "14px 16px", backgroundColor: theme.neumorphSurface, border: "none", borderRadius: theme.neumorph.radius, cursor: "pointer", color: theme.error }}>
             <img src="https://api.iconify.design/lucide:log-out.svg?color=%23dc2626" width="20" height="20" alt="" />
             <span style={{ flex: 1, textAlign: "left", fontSize: "14px", fontWeight: "700", color: theme.error }}>{t("logout")}</span>
           </button>
         </div>
       </div>
 
+      <ConfirmLogoutModal
+        open={confirmLogout}
+        onCancel={() => setConfirmLogout(false)}
+        onConfirm={() => { setConfirmLogout(false); onLogout(); }}
+      />
+
       {/* Edit Profile modal */}
       {editing && (
-        <div style={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", backgroundColor: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: "16px", boxSizing: "border-box" }} onClick={closeEdit}>
-          <div onClick={(e) => e.stopPropagation()} style={{ backgroundColor: theme.surface, borderRadius: theme.radius.lg, padding: "22px", width: "100%", maxWidth: "380px", display: "flex", flexDirection: "column", gap: "14px", boxSizing: "border-box", boxShadow: theme.shadowXl, maxHeight: "90vh", overflowY: "auto" }}>
+        <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: "16px", boxSizing: "border-box" }} onClick={closeEdit}>
+          <div onClick={(e) => e.stopPropagation()} className="ust-neumo" style={{ backgroundColor: theme.neumorphSurface, border: "none", borderRadius: theme.neumorph.radiusLg, padding: "22px", width: "100%", maxWidth: "380px", display: "flex", flexDirection: "column", gap: "12px", boxSizing: "border-box", maxHeight: "90vh", overflowY: "auto", minWidth: 0 }}>
             <h3 style={{ fontSize: "17px", fontWeight: "800", color: theme.text, margin: 0 }}>{t("editProfile")}</h3>
 
-            <label style={{ fontSize: "12px", fontWeight: "700", color: theme.text, marginBottom: "-8px" }}>{t("fullName2")}</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="To'liq ism"
-              style={{ width: "100%", padding: "12px", borderRadius: "10px", border: `1px solid ${theme.border}`, fontSize: "14px", outline: "none", boxSizing: "border-box", backgroundColor: theme.bgSecondary, color: theme.text }} />
+            <label style={{ fontSize: "12px", fontWeight: "700", color: theme.text, margin: 0 }}>{t("fullName2")}</label>
+            <input name="profileName" value={name} onChange={(e) => setName(e.target.value)} placeholder="To'liq ism"
+              className="ust-neumo-inset" style={{ width: "100%", padding: "12px", borderRadius: "12px", fontSize: "14px", outline: "none", boxSizing: "border-box", backgroundColor: theme.neumorphInsetBg, color: theme.text }} />
 
-            <label style={{ fontSize: "12px", fontWeight: "700", color: theme.text, marginBottom: "-8px" }}>{t("emailAddress")}</label>
-            <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@mail.com" type="email"
-              style={{ width: "100%", padding: "12px", borderRadius: "10px", border: `1px solid ${theme.border}`, fontSize: "14px", outline: "none", boxSizing: "border-box", backgroundColor: theme.bgSecondary, color: theme.text }} />
+            <label style={{ fontSize: "12px", fontWeight: "700", color: theme.text, margin: 0 }}>{t("emailAddress")}</label>
+            <input name="profileEmail" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@mail.com" type="email"
+              className="ust-neumo-inset" style={{ width: "100%", padding: "12px", borderRadius: "12px", fontSize: "14px", outline: "none", boxSizing: "border-box", backgroundColor: theme.neumorphInsetBg, color: theme.text }} />
 
-            <label style={{ fontSize: "12px", fontWeight: "700", color: theme.text, marginBottom: "-8px" }}>{t("phoneNumber")}</label>
-            <input value={newPhone} onChange={handlePhoneInput} type="tel" placeholder="+998 (90) 123-45-67"
-              style={{ width: "100%", padding: "12px", borderRadius: "10px", border: `1px solid ${theme.border}`, fontSize: "14px", outline: "none", boxSizing: "border-box", backgroundColor: theme.bgSecondary, color: theme.text }} />
+            <label style={{ fontSize: "12px", fontWeight: "700", color: theme.text, margin: 0 }}>{t("phoneNumber")}</label>
+            <input name="profilePhone" value={newPhone} onChange={handlePhoneInput} type="tel" placeholder="+998 (90) 123-45-67"
+              className="ust-neumo-inset" style={{ width: "100%", padding: "12px", borderRadius: "12px", fontSize: "14px", outline: "none", boxSizing: "border-box", backgroundColor: theme.neumorphInsetBg, color: theme.text }} />
             {phoneError && <span style={{ fontSize: "11px", color: theme.error, fontWeight: "700" }}>{phoneError}</span>}
 
             <div style={{ display: "flex", gap: "10px", marginTop: "6px" }}>
-              <button onClick={closeEdit} className="custom-btn" style={{ flex: 1, backgroundColor: theme.bgTertiary, color: theme.text, border: "none", borderRadius: "12px", padding: "12px", fontSize: "13px", fontWeight: "700", cursor: "pointer" }}>{t("cancel")}</button>
+              <button onClick={closeEdit} className="custom-btn ust-neumo" style={{ flex: 1, backgroundColor: theme.neumorphSurface, color: theme.text, border: "none", borderRadius: "12px", padding: "12px", fontSize: "13px", fontWeight: "700", cursor: "pointer" }}>{t("cancel")}</button>
               <button onClick={handleSaveProfile} disabled={saving} className="custom-btn" style={{ flex: 1, backgroundColor: theme.primary, color: theme.textInverse, border: "none", borderRadius: "12px", padding: "12px", fontSize: "13px", fontWeight: "800", cursor: "pointer" }}>{t("save")}</button>
             </div>
           </div>
@@ -271,3 +284,4 @@ export const UserProfile = ({
 };
 
 export default UserProfile;
+

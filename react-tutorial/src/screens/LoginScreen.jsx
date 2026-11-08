@@ -1,8 +1,9 @@
 import React, { useState, useRef } from "react";
-import { User, ChevronLeft, Loader2, Send } from "lucide-react";
+import { User, Send } from "lucide-react";
 import { apiUrl } from "../services/api";
 import { useTheme } from "../theme/ThemeContext";
 import { useTranslation } from "../i18n/LanguageContext";
+import { UBackBtn, UButton } from "../components/ui";
 
 export const LoginScreen = ({ onBack, onSendCode, onGuest }) => {
   const { theme } = useTheme();
@@ -113,9 +114,7 @@ export const LoginScreen = ({ onBack, onSendCode, onGuest }) => {
 
       {/* Orqaga qaytish */}
       <div>
-        <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", padding: "4px", marginBottom: "16px", color: theme.text }}>
-          <ChevronLeft size={28} />
-        </button>
+        <UBackBtn onClick={onBack} style={{ marginBottom: "16px" }} />
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", flex: 1, maxWidth: "360px", width: "100%", margin: "0 auto", textAlign: "left" }}>
@@ -150,7 +149,7 @@ export const LoginScreen = ({ onBack, onSendCode, onGuest }) => {
             borderRadius: theme.radius.lg,
             padding: theme.spacing.lg,
             marginBottom: "16px",
-            boxShadow: theme.shadowMd
+            ...theme.raiseMd,
           }}>
             <p style={{ fontSize: theme.font.base, fontWeight: theme.font.extrabold, color: theme.text, margin: "0 0 10px 0" }}>
               🔐 {t("telegramLink")}
@@ -166,7 +165,7 @@ export const LoginScreen = ({ onBack, onSendCode, onGuest }) => {
               style={{
                 display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
                 width: "100%", padding: "14px", borderRadius: theme.radius.md,
-                backgroundColor: "#229ED9", color: "#fff", textDecoration: "none",
+                backgroundColor: theme.info, color: theme.textInverse, textDecoration: "none",
                 fontWeight: theme.font.bold, fontSize: theme.font.base
               }}
             >
@@ -185,7 +184,7 @@ export const LoginScreen = ({ onBack, onSendCode, onGuest }) => {
         {/* Telefon maydoni */}
         <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "20px" }}>
           <label htmlFor="phoneNumber" style={{ fontSize: theme.font.sm, fontWeight: theme.font.bold, color: theme.text }}>{t("phoneNumber")}</label>
-          <div style={{ display: "flex", alignItems: "center", backgroundColor: theme.surface, border: `1px solid ${theme.border}`, borderRadius: theme.radius.xl, padding: "14px 18px", boxShadow: theme.shadowSm }}>
+          <div style={{ display: "flex", alignItems: "center", backgroundColor: theme.surface, border: `1px solid ${theme.border}`, borderRadius: theme.radius.xl, padding: "14px 18px", ...theme.raiseSm }}>
             <div style={{ display: "flex", alignItems: "center", gap: "10px", borderRight: `1px solid ${theme.border}`, paddingRight: "14px", marginRight: "14px" }}>
               <div style={{ width: "28px", height: "18px", borderRadius: "3px", overflow: "hidden", display: "flex", flexDirection: "column", border: `1px solid ${theme.border}` }}>
                 <div style={{ height: "33%", backgroundColor: "#0099ff" }}></div>
@@ -206,25 +205,9 @@ export const LoginScreen = ({ onBack, onSendCode, onGuest }) => {
         </div>
 
         {/* Kod yuborish */}
-        <button onClick={handleSendCode} disabled={isLoading}
-          style={{
-            width: "100%",
-            backgroundColor: isLoading ? theme.primaryHover : theme.primary,
-            color: theme.textInverse,
-            fontWeight: theme.font.bold,
-            fontSize: theme.font.lg,
-            padding: "18px",
-            borderRadius: theme.radius.xl,
-            border: "none",
-            cursor: isLoading ? "wait" : "pointer",
-            boxShadow: `0 8px 20px ${theme.mode === "dark" ? "rgba(16,185,129,0.3)" : "rgba(46,125,50,0.3)"}`,
-            display: "flex", justifyContent: "center", alignItems: "center", gap: "10px",
-            transition: theme.transition.normal,
-          }}>
-          {isLoading ? (
-            <><Loader2 size={20} className="animate-spin" /> {isLinking ? t("telegramWaiting") : t("loading")}</>
-          ) : t("sendCode")}
-        </button>
+        <UButton onClick={handleSendCode} disabled={isLoading} loading={isLoading} full size="lg">
+          {isLinking ? t("telegramWaiting") : t("sendCode")}
+        </UButton>
 
         {/* Ajratuvchi */}
         <div style={{ display: "flex", alignItems: "center", margin: "24px 0" }}>
@@ -234,23 +217,10 @@ export const LoginScreen = ({ onBack, onSendCode, onGuest }) => {
         </div>
 
         {/* Mehmon */}
-        <button onClick={onGuest}
-          style={{
-            width: "100%",
-            backgroundColor: theme.surface,
-            border: `1px solid ${theme.border}`,
-            color: theme.text,
-            fontWeight: theme.font.bold,
-            fontSize: theme.font.md,
-            padding: "18px",
-            borderRadius: theme.radius.xl,
-            cursor: "pointer",
-            display: "flex", alignItems: "center", justifyContent: "center", gap: "12px",
-            boxShadow: theme.shadowSm,
-            transition: theme.transition.normal,
-          }}>
-          <User size={22} color={theme.textSecondary} /> {t("continueAsGuest")}
-        </button>
+        <UButton onClick={onGuest} variant="secondary" full size="lg">
+          <User size={20} />
+          {t("continueAsGuest")}
+        </UButton>
       </div>
 
       {/* Footer */}

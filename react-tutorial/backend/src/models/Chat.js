@@ -30,4 +30,14 @@ const chatSchema = new mongoose.Schema(
 
 chatSchema.index({ user: 1, master: 1 }, { unique: true });
 
+// Arxitektura: xabarlarning ASOSIY manbasi — qurilmadagi lokal saqlash (AsyncStorage).
+// Bu backend nusxasi faqat "zaxira": yangi qurilmada kirilsa tarix ko'rinishi uchun.
+// Shuning uchun: har chatda oxirgi 100 xabar, 30 kundan eskirgan chat avtomatik o'chadi.
+const MAX_MESSAGES_PER_CHAT = 100;
+const CHAT_TTL_DAYS = 30;
+
+// Eskirgan chatlarni MongoDB o'zi tozalashi uchun TTL indeks
+chatSchema.index({ lastActivity: 1 }, { expireAfterSeconds: CHAT_TTL_DAYS * 24 * 60 * 60 });
+
 module.exports = mongoose.model("Chat", chatSchema);
+module.exports.MAX_MESSAGES_PER_CHAT = MAX_MESSAGES_PER_CHAT;

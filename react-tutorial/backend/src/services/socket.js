@@ -10,7 +10,19 @@ const userSockets = new Map();
 
 // IP -> connection count (DoS himoyasi)
 const ipConnections = new Map();
-const MAX_CONNECTIONS_PER_IP = 10;
+const MAX_CONNECTIONS_PER_IP = Number(process.env.MAX_CONNECTIONS_PER_IP) || 10;
+
+// Proxy / nginx ortida ham haqiqiy client IP'ni topish.
+// Socket.io express'dagi "trust proxy" sozlamasini ishlatmaydi, shuning uchun
+// x-forwarded-for sarlavhasini o'zimiz parse qilamiz.
+function clientIp(socket) {
+  const fwd = socket.handshake.headers["x-forwarded-for"];
+  if (typeof fwd === "string") {
+    const first = fwd.split(",")[0].trim();
+    if (first) return first;
+  }
+  return socket.handshake.address;
+}
 
 function initSocket(httpServer) {
   io = new Server(httpServer, {
@@ -27,7 +39,7 @@ function initSocket(httpServer) {
   });
 
   io.use((socket, next) => {
-    const ip = socket.handshake.address;
+    const ip = clientIp(socket);
     const count = (ipConnections.get(ip) || 0) + 1;
     if (count > MAX_CONNECTIONS_PER_IP) {
       return next(new Error("too_many_connections"));
@@ -47,25 +59,12 @@ function initSocket(httpServer) {
 
   io.on("connection", (socket) => {
     const uid = socket.userId;
-    const ip = socket.handshake.address;
+    const ip = clientIp(socket);
 
     if (!userSockets.has(uid)) userSockets.set(uid, new Set());
     userSockets.get(uid).add(socket.id);
 
-    // Per-socket message rate limit (100 xabar / daqiqa)
-    let msgCount = 0;
-    const msgReset = setInterval(() => { msgCount = 0; }, 60000);
-
-    socket.on("chat:message", () => {
-      msgCount++;
-      if (msgCount > 100) {
-        socket.emit("error", { message: "Juda tez yuboryapsiz" });
-        return;
-      }
-    });
-
     socket.on("disconnect", () => {
-      clearInterval(msgReset);
       const set = userSockets.get(uid);
       if (set) {
         set.delete(socket.id);
@@ -89,10 +88,4 @@ function emitToUser(userId, event, payload) {
   }
 }
 
-// Joriy ulangan socketlar soni (diagnostika)
-function onlineCount() {
-  if (!io) return 0;
-  return io.engine.clientsCount;
-}
-
-module.exports = { initSocket, emitToUser, onlineCount, io };
+module.exports = { initSocket, emitToUser };

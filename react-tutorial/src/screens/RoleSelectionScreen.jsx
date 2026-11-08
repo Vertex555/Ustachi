@@ -1,8 +1,8 @@
 import React, { useState } from "react";
-import { ChevronLeft } from "lucide-react";
 import { apiUrl, authHeaders } from "../services/api";
 import { useTheme } from "../theme/ThemeContext";
 import { useTranslation } from "../i18n/LanguageContext";
+import { UBackBtn, UCard } from "../components/ui";
 
 export const RoleSelectionScreen = ({ onSelectRole, onBackToHome }) => {
   const { theme } = useTheme();
@@ -25,6 +25,10 @@ export const RoleSelectionScreen = ({ onSelectRole, onBackToHome }) => {
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || "Rolni yangilashda xatolik");
 
+      if (data.user?.role !== role) {
+        throw new Error(data.message || "Rolni o'zgartirib bo'lmadi");
+      }
+
       onSelectRole(data.user);
     } catch (err) {
       setError(err.message);
@@ -46,14 +50,11 @@ export const RoleSelectionScreen = ({ onSelectRole, onBackToHome }) => {
       boxSizing: "border-box",
       width: "100%"
     }}>
-      <div style={{
-        backgroundColor: theme.surface,
-        padding: `${theme.spacing.xxl} ${theme.spacing.xl}`,
-        borderRadius: theme.radius.lg,
-        boxShadow: theme.shadowMd,
+      <UCard style={{
         width: "100%",
         maxWidth: "380px",
         margin: "0 auto",
+        padding: `${theme.spacing.xxl} ${theme.spacing.xl}`,
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -62,64 +63,53 @@ export const RoleSelectionScreen = ({ onSelectRole, onBackToHome }) => {
         boxSizing: "border-box"
       }}>
         {onBackToHome && (
-          <button
-            onClick={onBackToHome}
-            disabled={!!loading}
-            aria-label={t("back")}
-            style={{ background: "none", border: "none", cursor: loading ? "wait" : "pointer", alignSelf: "flex-start", color: theme.text, padding: "4px" }}
-          >
-            <ChevronLeft size={26} />
-          </button>
+          <div style={{ alignSelf: "flex-start", display: "flex", justifyContent: "flex-start" }}>
+            <UBackBtn onClick={onBackToHome} disabled={!!loading} />
+          </div>
         )}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
-          <div style={{ backgroundColor: theme.primary, width: "50px", height: "50px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 4px 10px ${theme.mode === "dark" ? "rgba(16,185,129,0.3)" : "rgba(46,125,50,0.3)"}` }}>
+          <div style={{ backgroundColor: theme.primary, width: "50px", height: "50px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: theme.raiseMd.boxShadow, transition: theme.transition.normal }}>
             <img src="https://api.iconify.design/lucide:wrench.svg?color=%23ffffff" alt="logo" width="26" height="26" />
           </div>
           <h1 style={{ fontSize: theme.font.xxl, fontWeight: theme.font.extrabold, color: theme.primary, margin: 0 }}>Ustachi</h1>
-          <p style={{ fontSize: theme.font.sm, color: theme.textSecondary, margin: 0 }}>Davom etish uchun o'z rolingizni tanlang</p>
+          <p style={{ fontSize: theme.font.sm, color: theme.textSecondary, margin: 0 }}>{t("rsDesc")}</p>
           {error && <p style={{ fontSize: theme.font.xs, color: theme.error, fontWeight: theme.font.bold, margin: 0 }}>{error}</p>}
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>
-
-          <button
+          <UCard
+            raised={!loading}
+            pressed={!!loading}
+            hover={!loading}
             onClick={() => pick("user")}
-            disabled={!!loading}
-            style={{
-              display: "flex", alignItems: "center", gap: "14px", padding: "14px 16px", borderRadius: theme.radius.md,
-              border: `2px solid ${theme.border}`, backgroundColor: theme.surfaceHover, cursor: loading ? "wait" : "pointer",
-              transition: theme.transition.normal, width: "100%", textAlign: "left", boxSizing: "border-box"
-            }}
+            style={{ display: "flex", alignItems: "center", gap: "14px", padding: "14px 16px", textAlign: "left", boxSizing: "border-box", opacity: loading && loading !== "user" ? 0.5 : 1 }}
           >
             <div style={{ backgroundColor: theme.successLight, padding: "10px", borderRadius: theme.radius.sm, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <img src="https://api.iconify.design/lucide:user.svg?color=%232e7d32" alt="user" width="24" height="24" />
             </div>
             <div>
-              <h3 style={{ fontSize: theme.font.md, fontWeight: theme.font.extrabold, color: theme.text, margin: "0 0 2px 0" }}>Foydalanuvchi</h3>
-              <p style={{ fontSize: theme.font.xs, color: theme.textSecondary, margin: 0 }}>Qurilmamni ta'mirlatish uchun usta qidiraman</p>
+              <h3 style={{ fontSize: theme.font.md, fontWeight: theme.font.extrabold, color: theme.text, margin: "0 0 2px 0" }}>{t("roleUser")}</h3>
+              <p style={{ fontSize: theme.font.xs, color: theme.textSecondary, margin: 0 }}>{t("roleUserDesc")}</p>
             </div>
-          </button>
+          </UCard>
 
-          <button
+          <UCard
+            raised={!loading}
+            pressed={!!loading}
+            hover={!loading}
             onClick={() => pick("master")}
-            disabled={!!loading}
-            style={{
-              display: "flex", alignItems: "center", gap: "14px", padding: "14px 16px", borderRadius: theme.radius.md,
-              border: `2px solid ${theme.border}`, backgroundColor: theme.surfaceHover, cursor: loading ? "wait" : "pointer",
-              transition: theme.transition.normal, width: "100%", textAlign: "left", boxSizing: "border-box"
-            }}
+            style={{ display: "flex", alignItems: "center", gap: "14px", padding: "14px 16px", textAlign: "left", boxSizing: "border-box", opacity: loading && loading !== "master" ? 0.5 : 1 }}
           >
             <div style={{ backgroundColor: theme.successLight, padding: "10px", borderRadius: theme.radius.sm, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <img src="https://api.iconify.design/lucide:hammer.svg?color=%232e7d32" alt="master" width="24" height="24" />
             </div>
             <div>
-              <h3 style={{ fontSize: theme.font.md, fontWeight: theme.font.extrabold, color: theme.text, margin: "0 0 2px 0" }}>Usta</h3>
-              <p style={{ fontSize: theme.font.xs, color: theme.textSecondary, margin: 0 }}>Buyurtmalarni ko'rib chiqish va qabul qilish</p>
+              <h3 style={{ fontSize: theme.font.md, fontWeight: theme.font.extrabold, color: theme.text, margin: "0 0 2px 0" }}>{t("roleMaster")}</h3>
+              <p style={{ fontSize: theme.font.xs, color: theme.textSecondary, margin: 0 }}>{t("roleMasterDesc")}</p>
             </div>
-          </button>
-
+          </UCard>
         </div>
-      </div>
+      </UCard>
     </div>
   );
 };

@@ -1,10 +1,11 @@
-import React, { useState } from "react";
+﻿import React, { useState, useEffect } from "react";
 import { apiUrl, authHeaders } from "../services/api";
 import { useTheme } from "../theme/ThemeContext";
 import { useTranslation } from "../i18n/LanguageContext";
 import { YandexMap } from "../components/YandexMap";
+import { isGuestPhone, formatPrice } from "../utils/display";
 
-export const PreOrder = ({ master, userLocation, orderDetails, onBack, onOrderNow }) => {
+export const PreOrder = ({ master, userLocation, orderDetails, onBack, onOrderNow, onCardPay, onOpenCards }) => {
   const { theme } = useTheme();
   const { t } = useTranslation();
   const [comment, setComment] = useState("");
@@ -12,6 +13,21 @@ export const PreOrder = ({ master, userLocation, orderDetails, onBack, onOrderNo
   const [error, setError] = useState("");
   const [deliveryMethod, setDeliveryMethod] = useState("master_pickup");
   const [paymentMethod, setPaymentMethod] = useState("cash_on_delivery");
+  const [cards, setCards] = useState(null);
+  const [selectedCard, setSelectedCard] = useState(null);
+
+  useEffect(() => {
+    if (paymentMethod === "card") {
+      fetch(apiUrl("/api/cards"), { headers: authHeaders() })
+        .then((r) => r.json())
+        .then((d) => {
+          const list = Array.isArray(d.data) ? d.data : [];
+          setCards(list);
+          setSelectedCard((prev) => prev || list.find((c) => c.isDefault)?.id || list[0]?.id || null);
+        })
+        .catch(() => setCards([]));
+    }
+  }, [paymentMethod]);
 
   const userLat = userLocation?.lat || 41.311081;
   const userLng = userLocation?.lng || 69.240562;
@@ -31,10 +47,34 @@ export const PreOrder = ({ master, userLocation, orderDetails, onBack, onOrderNo
     return phoneStr;
   };
 
-  const masterPhone = formatPhoneNumber(master?.phone || master?.phoneNumber);
+  const masterPhone = formatPhoneNumber(isGuestPhone(master?.phone || master?.phoneNumber) ? "" : (master?.phone || master?.phoneNumber));
+
+  // Click / Payme uchun to'lov sahifasini yangi tabda ochish
+  const openGatewayLink = async (created, method) => {
+    const oid = created?.id || created?._id;
+    if (!oid) return;
+    try {
+      const res = await fetch(apiUrl(`/api/payments/orders/${oid}/${method}/link`), {
+        method: "POST",
+        headers: authHeaders(),
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.data && data.data.url) {
+        window.open(data.data.url, "_blank", "noopener,noreferrer");
+      } else {
+        setError((data && data.message) || t("paymentFailed"));
+      }
+    } catch {
+      setError(t("paymentFailed"));
+    }
+  };
 
   const handleConfirmOrder = async () => {
     if (!onOrderNow || isCreating) return;
+    if (paymentMethod === "card" && !selectedCard) {
+      setError(t("chooseCardFirst"));
+      return;
+    }
     setIsCreating(true);
     setError("");
 
@@ -66,7 +106,17 @@ export const PreOrder = ({ master, userLocation, orderDetails, onBack, onOrderNo
       if (!response.ok) {
         throw new Error(data.message || "Buyurtma yaratishda xatolik yuz berdi");
       }
-      onOrderNow(data.data || data);
+      const created = data.data || data;
+
+      // Onlayn to'lov usuli tanlangan bo'lsa — to'lov darhol amalga oshiriladi
+      if (paymentMethod === "card" && typeof onCardPay === "function") {
+        onCardPay(created, "card", selectedCard);
+        return;
+      }
+      if (paymentMethod === "click" || paymentMethod === "payme") {
+        await openGatewayLink(created, paymentMethod);
+      }
+      onOrderNow(created);
     } catch (err) {
       setError(err.message || "Buyurtma yaratishda xatolik yuz berdi");
     } finally {
@@ -108,7 +158,7 @@ export const PreOrder = ({ master, userLocation, orderDetails, onBack, onOrderNo
   return (
     <div style={{ display: "flex", justifyContent: "center", width: "100%", minHeight: "100vh", backgroundColor: theme.bg }}>
       <div style={{
-        display: "flex", flexDirection: "column", minHeight: "100vh", width: "100%", maxWidth: "800px",
+        display: "flex", flexDirection: "column", minHeight: "100vh", width: "100%", maxWidth: "100%",
         backgroundColor: theme.bg, color: theme.text, fontFamily: theme.font.family, boxSizing: "border-box",
         position: "relative", boxShadow: "0 0 20px rgba(0,0,0,0.1)"
       }}>
@@ -147,7 +197,7 @@ export const PreOrder = ({ master, userLocation, orderDetails, onBack, onOrderNo
                 <div>
                   <h2 style={{ fontSize: "16px", fontWeight: "800", margin: "0 0 4px 0", color: theme.text }}>{master?.name || ""}</h2>
                   <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", flexWrap: "wrap" }}>
-                    <span style={{ color: theme.warning, fontWeight: "700", display: "flex", alignItems: "center", gap: "4px" }}><img src="https://api.iconify.design/lucide:star.svg?color=%23f59e0b&fill=%23f59e0b" width="13" height="13" alt="" />{master?.rating || "0"}</span>
+                    <span style={{ color: theme.warning, fontWeight: "700", display: "flex", alignItems: "center", gap: "4px" }}><img src="https://api.iconify.design/lucide:star.svg?color=%23059669&fill=%23059669" width="13" height="13" alt="" />{master?.rating || "0"}</span>
                     <span style={{ color: theme.textSecondary }}>({master?.reviewsCount || "0"})</span>
                   </div>
                 </div>
@@ -169,7 +219,7 @@ export const PreOrder = ({ master, userLocation, orderDetails, onBack, onOrderNo
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
                 <span style={{ fontSize: "12px", color: theme.textSecondary, display: "block", marginBottom: "2px" }}>{t("price")}</span>
-                <span style={{ fontSize: "20px", fontWeight: "900", color: theme.text }}>{price.toLocaleString()} so'm</span>
+                <span style={{ fontSize: "20px", fontWeight: "900", color: theme.text }}>{formatPrice(price, master?.currency)}</span>
               </div>
               <div style={{ textAlign: "right" }}>
                 <span style={{ fontSize: "12px", color: theme.primary, fontWeight: "700" }}>+{deliveryFee.toLocaleString()} so'm</span>
@@ -192,28 +242,60 @@ export const PreOrder = ({ master, userLocation, orderDetails, onBack, onOrderNo
             <span style={{ fontSize: "13px", fontWeight: "800", color: theme.text, marginTop: "6px" }}>{t("paymentMethod")}</span>
             <div style={{ display: "flex", gap: "10px", flexDirection: "column" }}>
               {optionCard(paymentMethod === "cash_on_delivery", () => setPaymentMethod("cash_on_delivery"), t("cashOnDelivery"), t("cashOnDesc"), <img src="https://api.iconify.design/lucide:banknote.svg?color=%232e7d32" alt="" width="20" height="20" />)}
-              {optionCard(paymentMethod === "online", () => setPaymentMethod("online"), t("onlinePayment"), t("onlineDesc"), <img src="https://api.iconify.design/lucide:credit-card.svg?color=%232e7d32" alt="" width="20" height="20" />)}
+              {optionCard(paymentMethod === "payme", () => setPaymentMethod("payme"), t("payme"), t("paymeDesc"), <span style={{ fontSize: "14px", fontWeight: "900", color: "#3f96d8" }}>Payme</span>)}
+              {optionCard(paymentMethod === "click", () => setPaymentMethod("click"), t("click"), t("clickDesc"), <span style={{ fontSize: "14px", fontWeight: "900", color: "#1f9e5e" }}>Click</span>)}
             </div>
 
-            {paymentMethod === "online" && (
-              <div style={{ backgroundColor: theme.primaryLight, border: `1.5px solid ${theme.success}`, borderRadius: theme.radius.md, padding: "14px", display: "flex", flexDirection: "column", gap: "8px", marginTop: "4px" }}>
-                <span style={{ fontSize: "12px", fontWeight: "800", color: theme.success, display: "flex", alignItems: "center", gap: "5px" }}><img src="https://api.iconify.design/lucide:credit-card.svg?color=%2359656e" width="15" height="15" alt="" />{t("onlinePayment")}</span>
-                <div style={{ display: "flex", flexDirection: "column", gap: "4px", fontSize: "13px", color: theme.text }}>
-                  <span style={{ color: theme.textSecondary }}>{t("onlinePayInstructions")}</span>
-                  {master?.bankCard ? (
-                    <>
-                      <span><span style={{ color: theme.textSecondary }}>Karta raqami:</span> <b style={{ letterSpacing: "1px" }}>{master.bankCard}</b></span>
-                      <span><span style={{ color: theme.textSecondary }}>Karta egasi:</span> <b>{master.cardholderName || "—"}</b></span>
-                    </>
-                  ) : (
-                    <span style={{ color: theme.warning }}>Usta onlayn to'lov uchun karta qo'shmagan. Naqd pulda to'lashni tanlang.</span>
-                  )}
-                </div>
+            {paymentMethod === "card" && (
+              <div style={{ backgroundColor: theme.primaryLight, border: `1.5px solid ${theme.success}`, borderRadius: theme.radius.md, padding: "14px", display: "flex", flexDirection: "column", gap: "10px", marginTop: "4px" }}>
+                <span style={{ fontSize: "12px", fontWeight: "800", color: theme.success, display: "flex", alignItems: "center", gap: "5px" }}>
+                  <img src="https://api.iconify.design/lucide:credit-card.svg?color=%2316a34a" width="15" height="15" alt="" />{t("chooseCard")}
+                </span>
+                {cards === null && <span style={{ fontSize: "12px", color: theme.textSecondary }}>{t("loading")}...</span>}
+                {cards && cards.length === 0 && (
+                  <div style={{ fontSize: "12px", color: theme.textSecondary, lineHeight: "1.5" }}>
+                    {t("noCardsHint")}
+                    <button onClick={onOpenCards} style={{ display: "block", marginTop: "8px", padding: "9px 12px", borderRadius: theme.radius.md, border: `1px solid ${theme.primary}`, backgroundColor: theme.bgSecondary, color: theme.primary, fontSize: "12px", fontWeight: "800", cursor: "pointer" }}>
+                      + {t("addCard")}
+                    </button>
+                  </div>
+                )}
+                {cards && cards.length > 0 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    {cards.map((c) => (
+                      <button
+                        key={c.id}
+                        onClick={() => setSelectedCard(c.id)}
+                        style={{
+                          display: "flex", alignItems: "center", gap: "10px",
+                          padding: "10px 12px", borderRadius: theme.radius.md, cursor: "pointer", textAlign: "left",
+                          border: selectedCard === c.id ? `2px solid ${theme.primary}` : `1px solid ${theme.border}`,
+                          backgroundColor: theme.surface,
+                          boxShadow: selectedCard === c.id ? theme.shadowSm : "none",
+                        }}
+                      >
+                        <span style={{
+                          width: "36px", height: "24px", borderRadius: "5px", flexShrink: 0,
+                          backgroundColor: c.brand === "mastercard" ? "#EB001B" : c.brand === "visa" ? "#1A1F71" : "#5B21B6",
+                        }}>
+                          <span style={{ display: "block", width: "14px", height: "24px", borderRadius: "5px", backgroundColor: c.brand === "mastercard" ? "#F79E1B" : "transparent", marginLeft: "16px", opacity: 0.9 }} />
+                        </span>
+                        <span style={{ fontSize: "13px", fontWeight: "800", color: theme.text, textTransform: "uppercase" }}>{c.brand}</span>
+                        <span style={{ fontSize: "13px", color: theme.textSecondary, fontVariantNumeric: "tabular-nums" }}>•••• {c.last4}</span>
+                        <span style={{ fontSize: "11px", color: theme.textTertiary }}>{c.expMonth}/{c.expYear}</span>
+                        {c.isDefault && <span style={{ fontSize: "10px", padding: "2px 6px", borderRadius: theme.radius.full, backgroundColor: theme.primaryLight, color: theme.primary, fontWeight: "bold", marginLeft: "auto" }}>{t("default")}</span>}
+                      </button>
+                    ))}
+                    <button onClick={onOpenCards} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "5px", padding: "8px", borderRadius: theme.radius.md, border: `1px dashed ${theme.primary}`, backgroundColor: "transparent", color: theme.primary, fontSize: "12px", fontWeight: "800", cursor: "pointer" }}>
+                      + {t("addCard")}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
 
-          <input type="text" placeholder={t("fieldRequired")} value={comment} onChange={(e) => setComment(e.target.value)}
+          <input name="orderComment" type="text" placeholder={t("fieldRequired")} value={comment} onChange={(e) => setComment(e.target.value)}
             style={{ width: "100%", padding: "12px 14px", borderRadius: theme.radius.md, border: `1px solid ${theme.border}`, fontSize: "12px", outline: "none", boxSizing: "border-box", backgroundColor: theme.surface, color: theme.text }} />
 
           {error && <p style={{ color: theme.error, fontSize: "12px", fontWeight: "700", margin: 0, textAlign: "center" }}>{error}</p>}
@@ -234,3 +316,5 @@ export const PreOrder = ({ master, userLocation, orderDetails, onBack, onOrderNo
 };
 
 export default PreOrder;
+
+

@@ -2,7 +2,6 @@ import { io } from "socket.io-client";
 import { getToken } from "./api";
 
 let socket = null;
-// Har bir hodisa uchun ro'yxatdan o'tgan barcha handler'lar
 const handlerRegistry = {
   onConnect: [],
   onDisconnect: [],
@@ -26,6 +25,12 @@ function registerHandler(key, fn) {
   if (!handlerRegistry[key].includes(fn)) handlerRegistry[key].push(fn);
 }
 
+function removeHandler(key, fn) {
+  const arr = handlerRegistry[key];
+  const idx = arr.indexOf(fn);
+  if (idx !== -1) arr.splice(idx, 1);
+}
+
 function notify(key, payload) {
   handlerRegistry[key].forEach((fn) => {
     try { fn(payload); } catch {}
@@ -42,20 +47,37 @@ function setupSocket() {
 }
 
 export function attachSocket(handlers = {}) {
-  // Handler'larni har chaqiruvda ro'yxatdan o'tkazamiz (idempotent)
   Object.keys(handlerRegistry).forEach((key) => registerHandler(key, handlers[key]));
 
-  if (socket && socket.connected) return socket;
+  if (socket && socket.connected) return { socket, detach: () => detachHandlers(handlers) };
   const token = getToken();
-  if (!token) return null;
+  if (!token) return { socket: null, detach: () => {} };
 
-  socket = io(process.env.REACT_APP_API_URL || "http://localhost:5000", {
+  // Eski (uzilgan/vaqtincha o'chirilgan) soket qolgan bo'lsa — takroriy
+  // ulanish va dubllangan event'larning oldini olish uchun tozalaymiz.
+  if (socket) {
+    socket.removeAllListeners();
+    socket.disconnect();
+    socket = null;
+  }
+
+  socket = io(import.meta.env.VITE_API_URL || "http://localhost:5000", {
     transports: ["websocket", "polling"],
     auth: { token },
+    reconnection: true,
+    reconnectionAttempts: 8,
+    reconnectionDelay: 500,
+    timeout: 8000,
   });
 
   setupSocket();
-  return socket;
+  return { socket, detach: () => detachHandlers(handlers) };
+}
+
+export function detachHandlers(handlers = {}) {
+  Object.keys(handlerRegistry).forEach((key) => {
+    if (handlers[key]) removeHandler(key, handlers[key]);
+  });
 }
 
 export function emitSocket(event, data) {
@@ -67,4 +89,5 @@ export function detachSocket() {
     socket.disconnect();
     socket = null;
   }
+  Object.values(handlerRegistry).forEach((arr) => { arr.length = 0; });
 }

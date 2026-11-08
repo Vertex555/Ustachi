@@ -1,6 +1,7 @@
 import React from "react";
 import { useTheme } from "../theme/ThemeContext";
 import { useTranslation } from "../i18n/LanguageContext";
+import { UButton, UCard } from "../components/ui";
 import uploadingSvg from "../animations/Uploading.svg";
 import userProfileSvg from "../animations/User Profile.svg";
 import successSvg from "../animations/Success.gif";
@@ -13,22 +14,22 @@ export const Onboarding2 = ({ onNext }) => {
     {
       icon: uploadingSvg,
       number: "1",
-      title: "Upload photo",
-      desc: "Upload clear photos of your phone damage",
+      title: t("ob2Step1Title"),
+      desc: t("ob2Step1Desc"),
       isGif: false,
     },
     {
       icon: userProfileSvg,
       number: "2",
-      title: "Choose master",
-      desc: "Select the best master near you",
+      title: t("ob2Step2Title"),
+      desc: t("ob2Step2Desc"),
       isGif: false,
     },
     {
       icon: successSvg,
       number: "3",
-      title: "Get fixed",
-      desc: "You review the job fixed quickly and reliably",
+      title: t("ob2Step3Title"),
+      desc: t("ob2Step3Desc"),
       isGif: false,
     },
   ];
@@ -52,28 +53,16 @@ export const Onboarding2 = ({ onNext }) => {
     }}>
       <div style={{ width: "100%", maxWidth: "380px" }}>
         <h2 style={{ fontSize: theme.font.xxxl, fontWeight: theme.font.extrabold, margin: "0 0 6px 0", color: theme.text, letterSpacing: "-0.5px" }}>
-          How Ustachi Works
+          {t("ob2Title")}
         </h2>
         <p style={{ fontSize: theme.font.base, color: theme.textSecondary, margin: 0, lineHeight: "1.4", fontWeight: theme.font.semibold }}>
-          Simple steps to get your phone fixed
+          {t("ob2Subtitle")}
         </p>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%", maxWidth: "380px", textAlign: "left" }}>
         {steps.map((step, index) => (
-          <div
-            key={index}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "16px",
-              padding: "14px 16px",
-              borderRadius: theme.radius.lg,
-              backgroundColor: theme.surface,
-              border: `1px solid ${theme.border}`,
-              boxShadow: theme.shadowSm
-            }}
-          >
+          <UCard key={index} style={{ display: "flex", alignItems: "center", gap: "16px", padding: "14px 16px" }}>
             <div style={{
               width: "52px",
               height: "52px",
@@ -97,7 +86,7 @@ export const Onboarding2 = ({ onNext }) => {
                 }}
               />
             </div>
-            
+
             <div style={{ flex: 1 }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 <span style={{ fontWeight: theme.font.extrabold, color: theme.primary, fontSize: theme.font.md }}>
@@ -111,7 +100,7 @@ export const Onboarding2 = ({ onNext }) => {
                 {step.desc}
               </p>
             </div>
-          </div>
+          </UCard>
         ))}
       </div>
 
@@ -122,24 +111,9 @@ export const Onboarding2 = ({ onNext }) => {
           <div style={{ width: "8px", height: "8px", borderRadius: "4px", backgroundColor: theme.border }}></div>
         </div>
 
-        <button
-          onClick={onNext}
-          style={{
-            width: "100%",
-            backgroundColor: theme.primary,
-            color: theme.textInverse,
-            fontWeight: theme.font.bold,
-            fontSize: theme.font.md,
-            padding: "16px",
-            borderRadius: theme.radius.lg,
-            border: "none",
-            cursor: "pointer",
-            boxShadow: `0 8px 20px ${theme.mode === "dark" ? "rgba(16,185,129,0.3)" : "rgba(46,125,50,0.3)"}`,
-            transition: theme.transition.normal,
-          }}
-        >
+        <UButton onClick={onNext} full size="lg">
           {t("onboardingNext")}
-        </button>
+        </UButton>
       </div>
     </div>
   );

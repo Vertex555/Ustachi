@@ -1,15 +1,25 @@
 const Order = require("../models/Order");
 const Master = require("../models/Master");
 const Chat = require("../models/Chat");
+const Review = require("../models/Review");
+const Category = require("../models/Category");
 const { emitToUser } = require("../services/socket");
+const { sendToUser } = require("../services/push.service");
+const orderState = require("../services/orderState");
+const commission = require("../services/commission.service");
+const notify = require("../services/notification.service");
+const money = require("../utils/money");
+const config = require("../config/app");
 const {
   serializeOrder,
-  isValidOrderStatus,
   isValidDeliveryMethod,
   isValidPaymentMethod,
+  parsePagination,
+  paginationMeta,
 } = require("../utils/helpers");
 
-const DELIVERY_FEE = 20000; // ustani uyga kelishi uchun qo'shimcha haq
+// Yetkazib berish to'lovi — minor units (20000 = 200 so'm)
+const DELIVERY_FEE_MINOR = 20000;
 
 function makeOrderNumber() {
   return (
@@ -20,21 +30,55 @@ function makeOrderNumber() {
   );
 }
 
+/**
+ * Narxlarni HISOBLAYDI (mijoz yuborgan narxni hech qachon ishlatmaydi).
+ * §21: "Never trust client-supplied ... prices, commissions".
+ */
 function computeTotals(master, deliveryMethod) {
-  const price = Math.round(Number(master.price) || 0);
-  const commission = Math.round(price * 0.07);
-  const deliveryFee = deliveryMethod === "master_pickup" ? DELIVERY_FEE : 0;
-  const total = price + commission + deliveryFee;
-  return { price, commission, deliveryFee, total };
+  // Master'ning narxi so'm (major) sifatida saqlanadi
+  const priceMajor = (Number(master.price) || 0);
+  const feesMajor =
+    deliveryMethod === "master_pickup" ? DELIVERY_FEE_MINOR / 100 : 0;
+  return commission.computeTotals({ priceMajor, feesMajor });
+}
+
+/** Statusni xavfsiz o'zgartiradi + tarixga yozadi */
+async function transition(order, to, { actor = null, role = "system", note = "" } = {}) {
+  const from = order.status;
+  const check = orderState.canTransition(from, to);
+  if (!check.ok) {
+    const err = new Error(check.message);
+    err.code = check.code;
+    err.status = 400;
+    throw err;
+  }
+  order.status = to;
+  order.history.push({
+    from,
+    to,
+    by: actor || undefined,
+    role,
+    note: String(note || "").slice(0, 500),
+    at: new Date(),
+  });
+  return order;
 }
 
 // Buyurtmalar ro'yxati
 exports.list = async (req, res) => {
+  const pag = parsePagination(req.query);
+
   if (req.query.view === "master") {
     const master = await Master.findOne({ user: req.user._id }).lean();
     if (!master) return res.json({ success: true, data: [] });
-    let orders = await Order.find({ master: master._id })
+    const orderQuery = { master: master._id };
+    const total = pag.enabled
+      ? await Order.countDocuments(orderQuery)
+      : 0;
+    let orders = await Order.find(orderQuery)
       .sort({ createdAt: -1 })
+      .skip(pag.skip)
+      .limit(pag.limit || 0)
       .populate("user", "phone name photo")
       .lean();
     orders = orders.map((o) => { o.master = master; return o; });
@@ -43,11 +87,19 @@ exports.list = async (req, res) => {
       s.seen = !!o.masterSeenAt && new Date(o.masterSeenAt).getTime() >= new Date(o.updatedAt).getTime();
       return s;
     });
-    return res.json({ success: true, data: result });
+    return res.json({
+      success: true,
+      data: result,
+      ...(pag.enabled ? { pagination: paginationMeta(pag, total) } : {}),
+    });
   }
 
-  let orders = await Order.find({ user: req.user._id })
+  const orderQuery = { user: req.user._id };
+  const total = pag.enabled ? await Order.countDocuments(orderQuery) : 0;
+  let orders = await Order.find(orderQuery)
     .sort({ createdAt: -1 })
+    .skip(pag.skip)
+    .limit(pag.limit || 0)
     .populate("user", "phone name photo")
     .lean();
   // master id'larni katalogdan biriktiramiz
@@ -66,11 +118,23 @@ exports.list = async (req, res) => {
     s.seen = !!o.userSeenAt && new Date(o.userSeenAt).getTime() >= new Date(o.updatedAt).getTime();
     return s;
   });
-  res.json({ success: true, data: result });
+  res.json({
+    success: true,
+    data: result,
+    ...(pag.enabled ? { pagination: paginationMeta(pag, total) } : {}),
+  });
 };
 
 // Joriy tomon barcha faol buyurtmalarni ko'rdi (badge o'chadi)
-const ACTIVE_SEEN_STATUSES = ["placed", "accepted", "in_progress", "ready"];
+const ACTIVE_SEEN_STATUSES = [
+  "submitted",
+  "awaiting_master",
+  "quoted",
+  "accepted",
+  "awaiting_payment",
+  "paid",
+  "in_progress",
+];
 exports.markSeen = async (req, res) => {
   const myMaster = await Master.findOne({ user: req.user._id }).lean();
   const isMaster = !!myMaster;
@@ -94,6 +158,22 @@ exports.create = async (req, res) => {
     return res.status(400).json({ success: false, message: "Noto'g'ri usta ID" });
   }
 
+  // §6.3 / §8: "Protection against duplicate order creation"
+  const idempotencyKey = String(req.body?.idempotencyKey || "").trim().slice(0, 100);
+  const clientRequestId = String(req.body?.clientRequestId || req.headers["x-request-id"] || "").trim().slice(0, 100);
+  const dedupeKey = idempotencyKey || clientRequestId;
+  if (dedupeKey) {
+    const existing = await Order.findOne({ user: req.user._id, idempotencyKey: dedupeKey }).lean();
+    if (existing) {
+      // Takroriy yuborish — bir xil javobni qaytaramiz (201 emas, 200)
+      return res.status(200).json({
+        success: true,
+        duplicate: true,
+        data: serializeOrder(existing),
+      });
+    }
+  }
+
   const master = await Master.findById(masterId);
   if (!master) {
     return res.status(404).json({ success: false, message: "Bunday usta topilmadi" });
@@ -106,34 +186,92 @@ exports.create = async (req, res) => {
     ? req.body.paymentMethod
     : "cash_on_delivery";
 
+  // §6.2: katalog DB dan keladi, UI da hardcode emas
+  const category = String(req.body?.category || "other").trim();
+  let serviceType = String(req.body?.serviceType || "").trim().slice(0, 120);
+  if (category) {
+    const cat = await Category.findOne({ key: category, active: true }).select("services").lean();
+    if (cat) {
+      // "Do not require a device model for services where it is irrelevant."
+      const svc = cat.services.find((s) => s.key === serviceType && s.active !== false);
+      if (serviceType && !svc) {
+        return res.status(400).json({
+          success: false,
+          message: `«${category}» kategoriyasida «${serviceType}» xizmati yo'q`,
+        });
+      }
+    } else {
+      return res.status(400).json({ success: false, message: "Noma'lom kategoriya" });
+    }
+  } else {
+    serviceType = "";
+  }
+
   let location = null;
   if (req.body.userLocation) {
     try {
       const parsed = JSON.parse(req.body.userLocation);
       if (parsed && parsed.lat != null && parsed.lng != null) {
-        location = { lat: Number(parsed.lat), lng: Number(parsed.lng) };
+        const lat = Number(parsed.lat);
+        const lng = Number(parsed.lng);
+        if (Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+          location = { lat, lng };
+        }
       }
     } catch { location = null; }
   }
 
-  const { price, commission, deliveryFee, total } = computeTotals(master, deliveryMethod);
+  // Narx serverda HISOBLANADI — mijoz yuborgan narx butunlay e'tiborsiz qoldiriladi
+  const t = computeTotals(master, deliveryMethod);
 
   const order = await Order.create({
     orderNumber: makeOrderNumber(),
     user: req.user._id,
     master: master._id,
+    category: Order.SERVICE_CATEGORIES.includes(category) ? category : "other",
+    serviceType,
     device: String(req.body.device || "").trim().slice(0, 100),
     deviceModel: String(req.body.deviceModel || "").trim().slice(0, 100),
+    brand: String(req.body.brand || "").trim().slice(0, 80),
     issue: String(req.body.issue || "").trim().slice(0, 200),
-    description: String(req.body.description || "").trim().slice(0, 1000),
+    description: String(req.body.description || "").trim().slice(0, 4000),
     comment: String(req.body.comment || "").trim().slice(0, 500),
-    price,
-    commission,
-    deliveryFee,
-    total,
+    addressText: String(req.body.addressText || "").trim().slice(0, 400),
+    // Minor units
+    priceMinor: t.priceMinor,
+    feesMinor: t.feesMinor,
+    totalMinor: t.totalMinor,
+    commissionMinor: t.commissionMinor,
+    masterNetMinor: t.masterNetMinor,
+    // Snapshot
+    commissionRateBpsSnapshot: t.rateBps,
+    commissionBasisSnapshot: t.basis,
+    currency: t.currency,
+    // Eski maydonlar (back-compat)
+    price: t.price,
+    commission: t.commission,
+    total: t.total,
+    deliveryFee: t.deliveryFee,
     deliveryMethod,
+    serviceMethod: Order.SERVICE_METHODS.includes(req.body?.serviceMethod) ? req.body.serviceMethod : "onsite",
     paymentMethod,
+    preferredAt: req.body?.preferredAt ? new Date(req.body.preferredAt) : null,
+    flexibleTime: !!req.body?.flexibleTime,
     location,
+    // Yangi buyurtma darhol "submitted" — mijoz to'g'ridan-to'g'ri yuboradi
+    status: "submitted",
+    history: [
+      {
+        from: "",
+        to: "submitted",
+        by: req.user._id,
+        role: "customer",
+        note: "Buyurtma yaratildi",
+        at: new Date(),
+      },
+    ],
+    idempotencyKey: dedupeKey,
+    clientRequestId,
     userSeenAt: new Date(),
     photos: (req.files || []).map((f) => "/uploads/" + f.filename),
   });
@@ -146,6 +284,28 @@ exports.create = async (req, res) => {
     order: serializeOrder(order),
     message: "Yangi buyurtma keldi",
   });
+
+  // Ilva ichidagi bildirishnoma + Expo push (bir xil idempotency kaliti bilan)
+  notify.notifyUser({
+    userId: master.user,
+    type: "order_created",
+    title: "Yangi buyurtma",
+    body: `${order.orderNumber} — ${master.title || master.name || "Usta"}`,
+    order: order._id,
+    actor: req.user._id,
+    eventKey: `order_created:${order._id}:${master.user}`,
+  }).catch(() => {});
+
+  // Ekspoz push — category "order" orqali sozlamaga qarab
+  sendToUser(
+    master.user,
+    {
+      title: "Yangi buyurtma",
+      body: `${order.orderNumber} — ${master.title || "Usta"}`,
+      data: { type: "order", orderId: order._id.toString() },
+    },
+    { category: "order" }
+  ).catch(() => {});
 
   // Yaratilgan buyurtmani foydalanuvchi "ko'rgan" deb belgilaymiz (badge o'chib turadi)
   await Order.updateOne({ _id: order._id }, { $set: { userSeenAt: new Date() } }, { timestamps: false });
@@ -168,6 +328,8 @@ exports.create = async (req, res) => {
     const last = chat.messages[chat.messages.length - 1];
     chat.lastMessage = last.text || (last.image ? "[image]" : "");
     chat.lastActivity = new Date();
+    const MAX = require("../models/Chat").MAX_MESSAGES_PER_CHAT || 100;
+    if (chat.messages.length > MAX) chat.messages.splice(0, chat.messages.length - MAX);
     await chat.save();
   } catch { /* chat xatosini bloklamaymiz */ }
 
@@ -202,12 +364,9 @@ exports.getOne = async (req, res) => {
   res.json({ success: true, data: serialized });
 };
 
-// Status yangilash (usta)
+// Status yangilash — §8: faqat backend ruxsat etgan o'tishlar
 exports.updateStatus = async (req, res) => {
-  const { status, rejectionReason } = req.body || {};
-  if (!isValidOrderStatus(status)) {
-    return res.status(400).json({ success: false, message: "Noto'g'ri status" });
-  }
+  const { status, note } = req.body || {};
 
   const order = await Order.findById(req.params.id);
   if (!order) {
@@ -215,42 +374,103 @@ exports.updateStatus = async (req, res) => {
   }
 
   const myMaster = await Master.findOne({ user: req.user._id });
-  if (!myMaster || myMaster._id.toString() !== order.master.toString()) {
+  if (!myMaster || String(order.master) !== String(myMaster._id)) {
     return res.status(403).json({ success: false, message: "Faqat usta statusni o'zgartira oladi" });
   }
 
-  const currentIdx = Order.ORDER_STATUSES.indexOf(order.status);
-  const nextIdx = Order.ORDER_STATUSES.indexOf(status);
-  if (nextIdx < currentIdx) {
-    return res.status(400).json({ success: false, message: "Statusni orqaga qaytarib bo'lmaydi" });
+  // Harakatni rol+status bo'yicha aniqlaymiz
+  const ACTION_BY_TARGET = {
+    quoted: "quote",
+    accepted: "accept",
+    in_progress: "start",
+    completed: "complete",
+    cancelled: "cancel",
+    disputed: "dispute",
+  };
+  const action = ACTION_BY_TARGET[status];
+  if (!action) {
+    return res.status(400).json({
+      success: false,
+      message: `Usta «${status}» holatiga o'ta olmaydi`,
+    });
   }
 
-  if (status === "rejected") {
-    const reason = String(rejectionReason || "").trim();
-    if (!reason) {
-      return res.status(400).json({ success: false, message: "Rad etish sababini kiriting" });
+  // Ustada cancel/dispute uchun alohida ruxsat yo'q —
+  // bekor qilish faqat mijozda va admin'da (§15 da ko'rib chiqiladi)
+  if (action === "cancel" || action === "dispute") {
+    if (status === "cancelled") {
+      return res.status(403).json({
+        success: false,
+        message: "Bekor qilishni faqat mijoz yoki admin amalga oshiradi",
+      });
     }
-    order.rejectionReason = reason;
   }
 
-  if (status === "accepted" && myMaster.location && myMaster.location.lat != null) {
+  const perm = orderState.canAct("master", action, order.status);
+  if (!perm.ok) {
+    return res.status(perm.code === "forbidden_action" ? 403 : 400).json({
+      success: false,
+      code: perm.code,
+      message: perm.message,
+    });
+  }
+
+  if (status === "quoted" && req.body?.quote) {
+    try {
+      const priceMinor = money.priceToMinor(req.body.quote.priceMajor ?? req.body.quote.price, {
+        field: "taklif narxi",
+        allowZero: false,
+      });
+      const feeMinor = order.feesMinor || 0;
+      const q = commission.computeTotals({ priceMajor: money.toMajor(priceMinor), feesMajor: money.toMajor(feeMinor) });
+      order.quotes.push({
+        priceMinor: q.priceMinor,
+        note: String(req.body.quote.note || "").slice(0, 1000),
+        scheduledAt: req.body.quote.scheduledAt ? new Date(req.body.quote.scheduledAt) : null,
+        flexible: !!req.body.quote.flexible,
+      });
+      order.activeQuoteIndex = order.quotes.length - 1;
+      // Taklif berilganda narxlar yangilanadi (komissiya qayta hisoblanadi)
+      order.priceMinor = q.priceMinor;
+      order.totalMinor = q.totalMinor;
+      order.commissionMinor = q.commissionMinor;
+      order.masterNetMinor = q.masterNetMinor;
+      order.commissionRateBpsSnapshot = q.rateBps;
+      order.commissionBasisSnapshot = q.basis;
+      order.price = q.price;
+      order.commission = q.commission;
+      order.total = q.total;
+    } catch (e) {
+      return res.status(400).json({ success: false, message: e.message });
+    }
+  }
+
+  if (myMaster.location && myMaster.location.lat != null && ["accepted", "in_progress"].includes(status)) {
     order.masterLocation = { lat: myMaster.location.lat, lng: myMaster.location.lng };
   }
 
-  order.status = status;
+  try {
+    await transition(order, status, {
+      actor: req.user._id,
+      role: "master",
+      note: String(note || "").slice(0, 500),
+    });
+  } catch (e) {
+    return res.status(e.status || 400).json({ success: false, code: e.code, message: e.message });
+  }
+
   const now = new Date();
-  const setFields = {
-    status,
-    masterLocation: order.masterLocation || undefined,
-    rejectionReason: order.rejectionReason || "",
-    // Harakat qilgan tomon ko'rdi, qarama-qarshi tomon yangi bildirishnoma oladi
-    masterSeenAt: now,
-    userSeenAt: null,
-    // updatedAt ni ham xuddi shu vaqtga qo'yamiz: usta o'z harakati uchun badge ko'rmaydi,
-    // mijoz esa yangi statusni "ko'rilmagan" deb biladi
-    updatedAt: now,
-  };
-  await Order.updateOne({ _id: order._id }, { $set: setFields }, { timestamps: false });
+  await Order.updateOne(
+    { _id: order._id },
+    {
+      $set: {
+        masterSeenAt: now,
+        userSeenAt: null, // mijoz yangi statusni ko'rmagan
+        updatedAt: now,
+      },
+    },
+    { timestamps: false }
+  );
 
   const updated = await Order.findById(order._id).populate({ path: "user", select: "phone name photo" }).lean();
   const m = await Master.findById(order.master).lean();
@@ -260,10 +480,65 @@ exports.updateStatus = async (req, res) => {
   serialized.seen = true;
   emitToUser(updated.user._id, "order:update", { order: serialized });
 
+  const NOTIF = {
+    quoted: { type: "quote_received", title: "Yangi narx taklifi", body: "Usta narx taklif qoldirdi" },
+    accepted: { type: "order_accepted", title: "Buyurtma qabul qilindi", body: "Usta buyurtmani qabul qildi" },
+    in_progress: { type: "order_status", title: "Ish boshlandi", body: "Usta ishlarni boshladi" },
+    completed: { type: "order_status", title: "Buyurtma yakunlandi", body: "Ish tugallandi" },
+  }[status];
+  if (NOTIF) {
+    notify
+      .notifyUser({
+        userId: updated.user._id,
+        type: NOTIF.type,
+        title: NOTIF.title,
+        body: `${updated.orderNumber} — ${NOTIF.body}`,
+        order: updated._id,
+        eventKey: `order_${status}:${updated._id}`,
+      })
+      .catch(() => {});
+  }
+
   res.json({ success: true, data: serialized });
 };
 
-// Foydalanuvchi reyting beradi
+// Mijoz taklifni qabul qilishi
+exports.confirmQuote = async (req, res) => {
+  const order = await Order.findById(req.params.id);
+  if (!order) return res.status(404).json({ success: false, message: "Buyurtma topilmadi" });
+  if (String(order.user) !== String(req.user._id)) {
+    return res.status(403).json({ success: false, message: "Ruxsat yo'q" });
+  }
+  const perm = orderState.canAct("customer", "confirm", order.status);
+  if (!perm.ok) {
+    return res.status(400).json({ success: false, code: perm.code, message: perm.message });
+  }
+  const idx = Number.isInteger(req.body?.quoteIndex) ? req.body.quoteIndex : order.activeQuoteIndex;
+  if (idx < 0 || idx >= order.quotes.length) {
+    return res.status(400).json({ success: false, message: "Taklif topilmadi" });
+  }
+  order.activeQuoteIndex = idx;
+  try {
+    await transition(order, "accepted", { actor: req.user._id, role: "customer", note: "Taklif qabul qilindi" });
+  } catch (e) {
+    return res.status(e.status || 400).json({ success: false, message: e.message });
+  }
+  await order.save();
+
+  const m = await Master.findById(order.master).lean();
+  notify.notifyUser({
+    userId: m?.user,
+    type: "order_accepted",
+    title: "Taklif qabul qilindi",
+    body: `${order.orderNumber} — mijoz narxni qabul qildi`,
+    order: order._id,
+    eventKey: `quote_confirmed:${order._id}`,
+  }).catch(() => {});
+
+  res.json({ success: true, data: serializeOrder(order) });
+};
+
+// Foydalanuvchi reyting beradi — §14
 exports.rate = async (req, res) => {
   const { rating, review } = req.body || {};
   const r = Math.round(Number(rating));
@@ -275,14 +550,12 @@ exports.rate = async (req, res) => {
   if (!order) {
     return res.status(404).json({ success: false, message: "Buyurtma topilmadi" });
   }
-  if (order.user.toString() !== req.user._id.toString()) {
+  if (String(order.user) !== String(req.user._id)) {
     return res.status(403).json({ success: false, message: "Ruxsat yo'q" });
   }
+  // §14: "Only eligible customers who completed the relevant order"
   if (order.status !== "completed") {
     return res.status(400).json({ success: false, message: "Faqat yakunlangan buyurtmaga reyting beriladi" });
-  }
-  if (order.rating > 0) {
-    return res.status(400).json({ success: false, message: "Siz allaqachon reyting bergansiz" });
   }
 
   const master = await Master.findById(order.master);
@@ -290,20 +563,43 @@ exports.rate = async (req, res) => {
     return res.status(404).json({ success: false, message: "Usta topilmadi" });
   }
 
+  // §14: bitta orderga bitta reyting (unique index ham himoya qiladi)
+  const already = await Review.findOne({ order: order._id }).select("_id");
+  if (already || order.rating > 0) {
+    return res.status(400).json({ success: false, message: "Siz allaqachon reyting bergansiz" });
+  }
+
   order.rating = r;
-  order.review = String(review || "").trim();
+  order.review = String(review || "").trim().slice(0, 2000);
   order.ratedAt = new Date();
   await order.save();
 
-  const totalReviews = (master.reviewsCount || 0) + 1;
-  const totalSum = (master.rating || 0) * (master.reviewsCount || 0) + r;
-  master.rating = Math.round((totalSum / totalReviews) * 10) / 10;
-  master.reviewsCount = totalReviews;
+  try {
+    await Review.create({
+      order: order._id,
+      orderNumber: order.orderNumber,
+      user: order.user,
+      master: order.master,
+      rating: r,
+      text: order.review,
+    });
+  } catch (e) {
+    if (e.code !== 11000) throw e;
+  }
+
+  // O'rtacha reytingni FAQAT haqiqiy review'lardan qayta hisoblaymiz (§14)
+  const agg = await Review.aggregate([
+    { $match: { master: master._id, status: "published" } },
+    { $group: { _id: null, avg: { $avg: "$rating" }, count: { $sum: 1 } } },
+  ]);
+  const s = agg[0] || { avg: 0, count: 0 };
+  master.rating = Math.round((s.avg || 0) * 10) / 10;
+  master.reviewsCount = s.count || 0;
   await master.save();
 
   const serialized = serializeOrder(order);
   emitToUser(master.user, "master:rated", { order: serialized, rating: r });
-  emitToUser(order.user._id, "order:update", { order: serialized });
+  emitToUser(order.user, "order:update", { order: serialized });
 
   res.json({ success: true, data: serialized });
 };
@@ -362,7 +658,7 @@ exports.updateLocation = async (req, res) => {
   res.json({ success: true, data: serializeOrder(order) });
 };
 
-// Foydalanuvchi buyurtmani bekor qilishi (faqat yakunlanmagan buyurtmalar)
+// Foydalanuvchi buyurtmani bekor qilishi — §8 / §15
 exports.cancel = async (req, res) => {
   const order = await Order.findById(req.params.id);
   if (!order) {
@@ -370,29 +666,66 @@ exports.cancel = async (req, res) => {
   }
 
   // Faqat buyurtma egasi bekor qila oladi
-  if (order.user.toString() !== req.user._id.toString()) {
+  if (String(order.user) !== String(req.user._id)) {
     return res.status(403).json({ success: false, message: "Ruxsat yo'q" });
   }
 
-  // Yakunlangan yoki rad etilgan buyurtmani bekor qilib bo'lmaydi
-  if (order.status === "completed" || order.status === "rejected") {
-    return res.status(400).json({ success: false, message: "Bu buyurtmani bekor qilib bo'lmaydi" });
+  const perm = orderState.canAct("customer", "cancel", order.status);
+  if (!perm.ok) {
+    return res.status(400).json({
+      success: false,
+      code: perm.code,
+      message: perm.message === "«same»" ? "Bu buyurtmani bekor qilib bo'lmaydi" : perm.message,
+    });
   }
 
-  order.status = "rejected";
-  order.rejectionReason = req.body?.reason || "Foydalanuvchi tomonidan bekor qilindi";
+  const reason = String(req.body?.reason || "").trim().slice(0, 1000);
+  if (!reason) {
+    return res.status(400).json({ success: false, message: "Bekor qilish sababini kiriting" });
+  }
+
+  // To'lov qabul qilingan bo'lsa — avval refund masalasi (avtomatik EMAS)
+  const needsRefund = order.paymentStatus === "paid" && order.collectedMinor > 0;
+  if (needsRefund) {
+    return res.status(409).json({
+      success: false,
+      code: "refund_required",
+      message:
+        "To'lov qabul qilingan buyurtma. Qaytarish uchun «muammo yuborish» orqali murojaat qiling — qaytarish faqat tasdiqlangan tranzaksiya bo'yicha amalga oshiriladi.",
+    });
+  }
+
+  try {
+    await transition(order, "cancelled", {
+      actor: req.user._id,
+      role: "customer",
+      note: reason,
+    });
+  } catch (e) {
+    return res.status(e.status || 400).json({ success: false, code: e.code, message: e.message });
+  }
+  order.cancellationReason = reason;
+  order.rejectionReason = reason;
   order.userSeenAt = new Date();
   order.masterSeenAt = null;
   await order.save();
 
-  const myMaster = await Master.findOne({ _id: order.master }).lean();
+  const myMaster = await Master.findById(order.master).lean();
   order.master = myMaster;
-  await order.populate({ path: "user", select: "phone name photo" });
 
   const serialized = serializeOrder(order);
   if (myMaster && myMaster.user) {
     emitToUser(myMaster.user, "order:update", { order: serialized });
+    notify.notifyUser({
+      userId: myMaster.user,
+      type: "order_declined",
+      title: "Buyurtma bekor qilindi",
+      body: `${order.orderNumber} — ${reason.slice(0, 120)}`,
+      order: order._id,
+      eventKey: `order_cancelled:${order._id}`,
+    }).catch(() => {});
   }
 
   res.json({ success: true, data: serialized });
 };
+

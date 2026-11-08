@@ -1,0 +1,45 @@
+{
+  "expo": {
+    "name": "Ustachi",
+    "slug": "ustachi",
+    "scheme": "ustachi",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "plugins": [
+      "expo-video",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Ustachi rasmlar va videolarni ko'rsatish uchun galereyaga kirish huquqini so'raydi",
+          "cameraPermission": "Ustachi surat va video olish uchun kameradan foydalanish huquqini so'raydi",
+          "microphonePermission": "Ustachi video yozishda ovoz yozish uchun mikrofondan foydalanish huquqini so'raydi"
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Ustachi ustalar orasidagi masofani ko'rsatish uchun joylashuvdan foydalanadi"
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#1E88E5"
+        }
+      ],
+      "expo-font",
+      "expo-status-bar"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.ustachi.app"
+    },
+    "android": {
+      "package": "com.ustachi.app",
+      "permissions": [
+        "android.permission.POST_NOTIFICATIONS"
+      ]
+    }
+  }
+}

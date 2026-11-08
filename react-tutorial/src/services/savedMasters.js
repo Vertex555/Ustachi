@@ -31,9 +31,15 @@ function normalizeFromServer(m) {
         photo: m.photo || null,
         rating: m.rating ?? 0,
         price: m.price ?? 0,
+        currency: m.currency || "uzs",
         workingHours: m.workingHours || "",
         location: m.location || null,
+        lat: m.lat ?? (m.location && m.location.lat) ?? null,
+        lng: m.lng ?? (m.location && m.location.lng) ?? null,
+        experience: m.experience || "",
+        specialty: m.specialty || "",
         devices: m.devices || [],
+        reviewsCount: m.reviewsCount ?? 0,
       }
     : null;
 }

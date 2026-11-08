@@ -1,5 +1,5 @@
 const User = require("../models/User");
-const { signToken, serializeUser } = require("../utils/helpers");
+const { createSessionToken, requestMeta, serializeUserWithMaster } = require("../utils/helpers");
 const {
   newLinkToken,
   buildDeepLink,
@@ -110,6 +110,14 @@ exports.verify = async (req, res) => {
     });
   }
 
+  if (user.banned) {
+    return res.status(403).json({
+      success: false,
+      message: user.bannedReason || "Hisobingiz bloklangan",
+      banned: true,
+    });
+  }
+
   if (String(user.verificationCode) !== code) {
     return res.status(400).json({
       success: false,
@@ -121,8 +129,8 @@ exports.verify = async (req, res) => {
   user.codeExpiresAt = undefined;
   await user.save();
 
-  const token = signToken(user);
-  res.json({ success: true, token, user: serializeUser(user) });
+  const token = await createSessionToken(user, requestMeta(req));
+  res.json({ success: true, token, user: await serializeUserWithMaster(user) });
 };
 
 // 3) Mehmon sifatida kirish
@@ -132,12 +140,12 @@ exports.guest = async (req, res) => {
     .slice(2, 6)}`;
 
   const user = await User.create({ phone, role: "guest" });
-  const token = signToken(user);
+  const token = await createSessionToken(user, requestMeta(req));
 
-  res.status(201).json({ success: true, token, user: serializeUser(user) });
+  res.status(201).json({ success: true, token, user: await serializeUserWithMaster(user) });
 };
 
 // 4) Joriy foydalanuvchi
 exports.me = async (req, res) => {
-  res.json({ success: true, user: serializeUser(req.user) });
+  res.json({ success: true, user: await serializeUserWithMaster(req.user) });
 };

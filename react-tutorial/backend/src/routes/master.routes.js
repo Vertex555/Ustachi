@@ -6,6 +6,9 @@ const ctrl = require("../controllers/master.controller");
 
 router.get("/", authRequired, masterLimiter, ctrl.list);
 router.get("/me", authRequired, masterLimiter, ctrl.me);
+router.patch("/me", authRequired, masterLimiter, ctrl.updateMe);
+router.get("/me/earnings", authRequired, masterLimiter, ctrl.earnings);
+router.get("/:id/reviews", authRequired, masterLimiter, ctrl.reviews);
 router.get("/:id", authRequired, masterLimiter, ctrl.getOne);
 router.post("/", authRequired, masterLimiter, ctrl.create);
 

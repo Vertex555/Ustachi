@@ -2,6 +2,7 @@ import React from "react";
 import { Wrench } from "lucide-react";
 import { useTheme } from "../theme/ThemeContext";
 import { useTranslation } from "../i18n/LanguageContext";
+import { UButton } from "../components/ui";
 import phoneRepairSvg from "../animations/Phone Repair.svg";
 
 export const Onboarding1 = ({ onNext }) => {
@@ -34,7 +35,8 @@ export const Onboarding1 = ({ onNext }) => {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          boxShadow: `0 8px 20px ${theme.mode === "dark" ? "rgba(16,185,129,0.3)" : "rgba(46,125,50,0.3)"}`
+          ...theme.raiseMd,
+          transition: theme.transition.normal,
         }}>
           <Wrench size="38px" color={theme.textInverse} style={{ transform: "rotate(-45deg)" }} />
         </div>
@@ -81,24 +83,9 @@ export const Onboarding1 = ({ onNext }) => {
           <div style={{ width: "8px", height: "8px", borderRadius: "4px", backgroundColor: theme.border }}></div>
         </div>
 
-        <button
-          onClick={onNext}
-          style={{
-            width: "100%",
-            backgroundColor: theme.primary,
-            color: theme.textInverse,
-            fontWeight: theme.font.bold,
-            fontSize: theme.font.md,
-            padding: "16px",
-            borderRadius: theme.radius.lg,
-            border: "none",
-            cursor: "pointer",
-            boxShadow: `0 8px 20px ${theme.mode === "dark" ? "rgba(16,185,129,0.3)" : "rgba(46,125,50,0.3)"}`,
-            transition: theme.transition.normal,
-          }}
-        >
+        <UButton onClick={onNext} full size="lg">
           {t("getStarted")}
-        </button>
+        </UButton>
 
         <div style={{
           display: "flex",

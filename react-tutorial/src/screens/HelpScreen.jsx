@@ -1,6 +1,7 @@
-import React from "react";
+﻿import React from "react";
 import { useTheme } from "../theme/ThemeContext";
 import { useTranslation } from "../i18n/LanguageContext";
+import { UBackBtn, UCard } from "../components/ui";
 
 export const HelpScreen = ({ onBack, viewerRole }) => {
   const { theme } = useTheme();
@@ -28,15 +29,15 @@ export const HelpScreen = ({ onBack, viewerRole }) => {
 
   return (
     <div style={{ display: "flex", justifyContent: "center", width: "100%", minHeight: "100vh", backgroundColor: theme.bg }}>
-      <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", width: "100%", maxWidth: "800px", backgroundColor: theme.bg, color: theme.text, fontFamily: theme.font.family, boxSizing: "border-box", padding: "24px 20px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "24px" }}>
-          <button onClick={onBack} aria-label={t("back")} style={{ backgroundColor: theme.surface, border: `1px solid ${theme.border}`, borderRadius: "50%", width: "40px", height: "40px", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: theme.text, fontSize: "18px", fontWeight: "bold", boxShadow: theme.shadowSm }}><img src={`https://api.iconify.design/lucide:chevron-left.svg?color=${encodeURIComponent(theme.text)}`} width="18" height="18" alt="" /></button>
+      <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", width: "100%", maxWidth: "100%", backgroundColor: theme.bg, color: theme.text, fontFamily: theme.font.family, boxSizing: "border-box", padding: "24px 20px" }}>
+<div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "24px" }}>
+          <UBackBtn onClick={onBack} />
           <h1 style={{ fontSize: "18px", fontWeight: "800", margin: 0, color: theme.text }}>{t("helpTitle")}</h1>
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
           {steps.map((step) => (
-            <div key={step.num} style={{ backgroundColor: theme.surface, border: `1px solid ${theme.border}`, borderRadius: theme.radius.lg, padding: "16px", display: "flex", alignItems: "flex-start", gap: "14px", boxShadow: theme.shadowSm }}>
+            <UCard key={step.num} style={{ padding: "16px", display: "flex", alignItems: "flex-start", gap: "14px" }}>
               <div style={{ width: "44px", height: "44px", borderRadius: "12px", backgroundColor: theme.primaryLight, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                 <img src={`https://api.iconify.design/${step.icon}`} width="22" height="22" alt="" />
               </div>
@@ -44,7 +45,7 @@ export const HelpScreen = ({ onBack, viewerRole }) => {
                 <h3 style={{ fontSize: "14px", fontWeight: "800", color: theme.text, margin: "0 0 4px 0" }}>{step.title}</h3>
                 <p style={{ fontSize: "13px", color: theme.textSecondary, margin: 0, lineHeight: "1.4" }}>{step.desc}</p>
               </div>
-            </div>
+            </UCard>
           ))}
         </div>
       </div>
@@ -53,3 +54,5 @@ export const HelpScreen = ({ onBack, viewerRole }) => {
 };
 
 export default HelpScreen;
+
+

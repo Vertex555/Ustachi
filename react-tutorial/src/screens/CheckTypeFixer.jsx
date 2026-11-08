@@ -1,7 +1,48 @@
-import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect } from "react";
 import { apiUrl, authHeaders } from "../services/api";
 import { useTheme } from "../theme/ThemeContext";
 import { useTranslation } from "../i18n/LanguageContext";
+import { isGuestPhone } from "../utils/display";
+
+// Daqiqa <-> "HH:MM"
+const toMinutes = (hhmm) => {
+  if (!hhmm) return null;
+  const [h, m] = String(hhmm).split(":").map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return null;
+  return h * 60 + m;
+};
+const fromMinutes = (min) => {
+  if (min == null) return "";
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+};
+
+// Ish vaqti maydoni — ixcham, qo'lda kiritish ham mumkin
+const TimeField = ({ label, icon, min, onChange, error }) => {
+  const { theme } = useTheme();
+  const show = min == null ? "" : fromMinutes(((min % 1440) + 1440) % 1440);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "5px", flex: "1 1 130px", minWidth: "110px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+        <img src={icon} width="13" height="13" alt="" />
+        <span style={{ fontSize: "11px", fontWeight: "700", color: theme.textSecondary }}>{label}</span>
+      </div>
+      <input
+        type="time"
+        value={show}
+        onChange={(e) => onChange(e.target.value ? toMinutes(e.target.value) : null)}
+        style={{
+          width: "100%", boxSizing: "border-box", padding: "8px 10px",
+          borderRadius: "10px", border: `1px solid ${error ? theme.error : theme.border}`,
+          backgroundColor: theme.bgSecondary, color: theme.text, fontSize: "13px", fontWeight: "700",
+          outline: "none", cursor: "pointer", fontFamily: theme.font.family,
+          boxShadow: theme.raiseSm.boxShadow,
+        }}
+      />
+    </div>
+  );
+};
 
 export const CheckTypeFixer = ({ onSaveProfile, onChangeRole }) => {
   const { theme } = useTheme();
@@ -11,10 +52,9 @@ export const CheckTypeFixer = ({ onSaveProfile, onChangeRole }) => {
   const [experience, setExperience] = useState("");
   const [selectedDevices, setSelectedDevices] = useState([]);
   const [price, setPrice] = useState("");
-  const [workStart, setWorkStart] = useState("");
-  const [workEnd, setWorkEnd] = useState("");
-  const [bankCard, setBankCard] = useState("");
-  const [cardholderName, setCardholderName] = useState("");
+  const [currency, setCurrency] = useState("uzs");
+  const [workStartMin, setWorkStartMin] = useState(null);
+  const [workEndMin, setWorkEndMin] = useState(null);
   const [location, setLocation] = useState({ lat: 41.311081, lng: 69.240562, address: "Toshkent shahar" });
   const [isLocating, setIsLocating] = useState(false);
 
@@ -22,6 +62,14 @@ export const CheckTypeFixer = ({ onSaveProfile, onChangeRole }) => {
   const [serverError, setServerError] = useState("");
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [savedData, setSavedData] = useState(null);
+
+const CURRENCIES = [
+    { code: "uzs", symbol: "so'm", label: "So'm" },
+    { code: "rub", symbol: "\u20BD", label: "Rubl" },
+    { code: "usd", symbol: "$", label: "Dollar" },
+    { code: "eur", symbol: "\u20AC", label: "Yevro" },
+  ];
+  const currencySuffix = (CURRENCIES.find((c) => c.code === currency) || CURRENCIES[0]).symbol;
 
   const availableDevices = [
     { id: "Smartfon", name: "Smartfon", icon: "https://api.iconify.design/lucide:smartphone.svg?color=%232e7d32" },
@@ -64,31 +112,6 @@ export const CheckTypeFixer = ({ onSaveProfile, onChangeRole }) => {
     if (errors.phone) setErrors({ ...errors, phone: false });
   };
 
-  const formatCard = (value) => {
-    const digits = value.replace(/\D/g, "").slice(0, 16);
-    return digits.replace(/(.{4})/g, "$1 ").trim();
-  };
-
-  const handleCardChange = (e) => {
-    setBankCard(formatCard(e.target.value));
-  };
-
-  const formatTime = (value) => {
-    let d = value.replace(/\D/g, "").slice(0, 4);
-    if (d.length >= 3) d = d.slice(0, 2) + ":" + d.slice(2);
-    return d;
-  };
-
-  const handleWorkStartChange = (e) => {
-    setWorkStart(formatTime(e.target.value));
-    if (errors.hours) setErrors({ ...errors, hours: false });
-  };
-
-  const handleWorkEndChange = (e) => {
-    setWorkEnd(formatTime(e.target.value));
-    if (errors.hours) setErrors({ ...errors, hours: false });
-  };
-
   const handlePriceChange = (e) => {
     let v = e.target.value.replace(/\D/g, "");
     if (v === "") { setPrice(""); return; }
@@ -106,17 +129,16 @@ export const CheckTypeFixer = ({ onSaveProfile, onChangeRole }) => {
         if (res.ok && data.success && data.data) {
           const m = data.data;
           setMasterName(m.name || "");
-          setPhoneNumber(m.phone ? formatPhoneNumber(m.phone) : "+998 ");
+          setPhoneNumber(m.phone && !isGuestPhone(m.phone) ? formatPhoneNumber(m.phone) : "+998 ");
           setExperience(m.experience || "");
           setSelectedDevices(m.devices || []);
           setPrice(m.price ? String(m.price) : "");
+          setCurrency(m.currency || "uzs");
           if (m.workingHours) {
             const parts = String(m.workingHours).split("-").map((p) => p.trim());
-            if (parts.length > 0) setWorkStart(parts[0] || "");
-            if (parts.length > 1) setWorkEnd(parts[1] || "");
+            if (parts.length > 0 && toMinutes(parts[0]) != null) setWorkStartMin(toMinutes(parts[0]));
+            if (parts.length > 1 && toMinutes(parts[1]) != null) setWorkEndMin(toMinutes(parts[1]));
           }
-          setBankCard(m.bankCard || "");
-          setCardholderName(m.cardholderName || "");
           if (m.location) setLocation(m.location);
         }
       } catch {}
@@ -181,8 +203,11 @@ export const CheckTypeFixer = ({ onSaveProfile, onChangeRole }) => {
     if (phoneNumber.length < 19) newErrors.phone = true;
     if (!experience.trim()) newErrors.experience = true;
     if (selectedDevices.length === 0) newErrors.devices = true;
-    if (bankCard && bankCard.replace(/\s/g, "").length !== 16) newErrors.card = true;
-    if ((workStart || workEnd) && !(/^([01]\d|2[0-3]):[0-5]\d$/.test(workStart) && /^([01]\d|2[0-3]):[0-5]\d$/.test(workEnd))) newErrors.hours = true;
+    const bothTimes = workStartMin != null && workEndMin != null;
+    if (bothTimes && workStartMin >= workEndMin) newErrors.hours = true;
+    const startSet = workStartMin != null;
+    const endSet = workEndMin != null;
+    if (startSet !== endSet) newErrors.hours = true;
     if (price && (Number(price) < 0 || Number(price) > 1000000000)) newErrors.priceRange = true;
 
     if (Object.keys(newErrors).length > 0) {
@@ -197,9 +222,10 @@ export const CheckTypeFixer = ({ onSaveProfile, onChangeRole }) => {
       experience: experience.trim(),
       devices: selectedDevices,
       price: price ? Number(price) : 0,
-      workingHours: (workStart || workEnd) ? `${workStart} - ${workEnd}` : "",
-      bankCard: bankCard.replace(/\s/g, ""),
-      cardholderName: cardholderName.trim(),
+      currency,
+      workingHours: bothTimes
+        ? `${fromMinutes(workStartMin)} - ${fromMinutes(workEndMin)}`
+        : (workStartMin != null ? fromMinutes(workStartMin) : (workEndMin != null ? fromMinutes(workEndMin) : "")),
       location: { 
         lat: location.lat, 
         lng: location.lng, 
@@ -241,11 +267,12 @@ export const CheckTypeFixer = ({ onSaveProfile, onChangeRole }) => {
     }
   };
 
-  const cardStyle = {
+const cardStyle = {
     backgroundColor: theme.surface,
     padding: "14px",
     borderRadius: "14px",
-    border: `1px solid ${theme.border}`,
+    border: `1px solid ${theme.borderLight}`,
+    boxShadow: theme.raiseSm.boxShadow,
     boxSizing: "border-box",
   };
 
@@ -303,14 +330,25 @@ export const CheckTypeFixer = ({ onSaveProfile, onChangeRole }) => {
         .custom-btn:active {
           transform: scale(0.98);
         }
-        .devices-grid {
+.devices-grid {
           display: grid;
           grid-template-columns: repeat(auto-fill, minmax(135px, 1fr));
           gap: 8px;
         }
+        .work-hours-grid {
+          display: grid;
+          grid-template-columns: 1fr auto 1fr;
+          gap: 10px;
+          align-items: start;
+        }
+        @media (max-width: 520px) {
+          .work-hours-grid {
+            grid-template-columns: 1fr;
+          }
+        }
       `}</style>
 
-      <div style={{ width: "100%", maxWidth: "800px", margin: "0 auto", display: "flex", flexDirection: "column", gap: "14px" }}>
+      <div style={{ width: "100%", maxWidth: "100%", margin: "0 auto", display: "flex", flexDirection: "column", gap: "14px" }}>
 
         <div style={{ 
           display: "flex", 
@@ -352,8 +390,8 @@ export const CheckTypeFixer = ({ onSaveProfile, onChangeRole }) => {
                   backgroundColor: theme.successLight,
                   border: `1px solid ${theme.success}`,
                   color: theme.success,
-                  padding: "6px 12px",
-                  borderRadius: "20px",
+padding: "6px 12px",
+                  borderRadius: "9999px",
                   fontSize: "12px",
                   fontWeight: "600",
                   cursor: "pointer",
@@ -398,6 +436,7 @@ export const CheckTypeFixer = ({ onSaveProfile, onChangeRole }) => {
               {t("cf_fullName")} <span style={{ color: theme.error }}>*</span>
             </label>
             <input 
+              name="masterName"
               type="text" 
               placeholder={t("cf_namePlaceholder")} 
               value={masterName}
@@ -415,6 +454,7 @@ export const CheckTypeFixer = ({ onSaveProfile, onChangeRole }) => {
               {t("cf_phone")} <span style={{ color: theme.error }}>*</span>
             </label>
             <input 
+              name="masterPhone"
               type="tel" 
               placeholder="+998 (90) 123-45-67" 
               value={phoneNumber}
@@ -430,6 +470,7 @@ export const CheckTypeFixer = ({ onSaveProfile, onChangeRole }) => {
               {t("cf_experience")} <span style={{ color: theme.error }}>*</span>
             </label>
             <input 
+              name="masterExperience"
               type="text" 
               placeholder={t("cf_expPlaceholder")} 
               value={experience}
@@ -444,43 +485,70 @@ export const CheckTypeFixer = ({ onSaveProfile, onChangeRole }) => {
           <div style={{ ...cardStyle, border: errors.priceRange ? `1.5px solid ${theme.error}` : `1px solid ${theme.border}` }}>
             <label style={{ ...labelStyle, color: errors.priceRange ? theme.error : theme.textSecondary }}>
               <img src="https://api.iconify.design/lucide:banknote.svg?color=%232e7d32" width="15" height="15" alt="" />
-              {t("cf_price")} <span style={{ fontWeight: "700", color: "#059669", fontSize: "12px" }}>so'm</span>
+              {t("cf_price")}
             </label>
+            <div style={{ display: "flex", gap: "8px", marginBottom: "10px", flexWrap: "wrap" }}>
+              {CURRENCIES.map((c) => (
+                <button
+                  type="button"
+                  key={c.code}
+                  onClick={() => setCurrency(c.code)}
+                  style={{
+padding: "7px 14px",
+                    borderRadius: "9999px",
+                    cursor: "pointer",
+                    border: currency === c.code ? `1.5px solid ${theme.primary}` : `1px solid ${theme.border}`,
+                    backgroundColor: currency === c.code ? theme.primaryLight : theme.bgSecondary,
+                    color: currency === c.code ? theme.primary : theme.textSecondary,
+                    fontWeight: "800",
+                    fontSize: "13px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    boxShadow: theme.raiseSm.boxShadow,
+                  }}
+                >
+                  <span style={{ fontSize: "15px", lineHeight: 1 }}>{c.symbol}</span>
+                  {currency === c.code && (
+                    <span style={{ fontSize: "12px", fontWeight: "700" }}>{c.label}</span>
+                  )}
+                  {currency === c.code && <img src={`https://api.iconify.design/lucide:check.svg?color=${encodeURIComponent(theme.primary)}`} width="12" height="12" alt="" />}
+                </button>
+              ))}
+            </div>
             <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
-              <input type="number" inputMode="numeric" placeholder={t("cf_pricePlaceholder")} min="0" max="1000000000" value={price} onChange={handlePriceChange} className="custom-input" style={{ paddingRight: "52px" }} />
-              <span style={{ position: "absolute", right: "14px", color: theme.textSecondary, fontSize: "13px", fontWeight: "700", pointerEvents: "none" }}>so'm</span>
+              <input name="masterPrice" type="number" inputMode="numeric" placeholder={t("cf_pricePlaceholder")} min="0" max="1000000000" value={price} onChange={handlePriceChange} className="custom-input" style={{ paddingRight: "52px" }} />
+              <span style={{ position: "absolute", right: "14px", color: theme.textSecondary, fontSize: "13px", fontWeight: "700", pointerEvents: "none" }}>{currencySuffix}</span>
             </div>
             {errors.priceRange && <span style={{ fontSize: "11px", color: theme.error, fontWeight: "bold" }}>{t("cf_priceError")}</span>}
           </div>
 
           <div style={{ ...cardStyle, border: errors.hours ? `1.5px solid ${theme.error}` : `1px solid ${theme.border}` }}>
-            <label style={{ ...labelStyle, color: errors.hours ? theme.error : theme.textSecondary }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "10px" }}>
               <img src="https://api.iconify.design/lucide:clock.svg?color=%232e7d32" width="15" height="15" alt="" />
-              {t("cf_workingHours")}
-            </label>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <input type="text" inputMode="numeric" placeholder={t("cf_hoursStart")} value={workStart} onChange={handleWorkStartChange} className="custom-input" style={{ textAlign: "center" }} />
-              <span style={{ color: theme.textSecondary, fontWeight: "800" }}>-</span>
-              <input type="text" inputMode="numeric" placeholder={t("cf_hoursEnd")} value={workEnd} onChange={handleWorkEndChange} className="custom-input" style={{ textAlign: "center" }} />
+              <span style={{ fontSize: "12px", fontWeight: "700", color: errors.hours ? theme.error : theme.textSecondary }}>{t("cf_workingHours")}</span>
+              <span style={{ fontSize: "11px", color: theme.textTertiary }}>{t("cf_hoursHint")}</span>
+            </div>
+<div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+              <TimeField
+                label={t("cf_hoursStart")}
+                icon="https://api.iconify.design/lucide:sunrise.svg?color=%232e7d32"
+                min={workStartMin}
+                error={errors.hours}
+                onChange={(v) => { setWorkStartMin(v); if (errors.hours) setErrors({ ...errors, hours: false }); }}
+              />
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, paddingBottom: "1px" }}>
+                <img src="https://api.iconify.design/lucide:arrow-down-up.svg?color=%2394a3b8" width="16" height="16" alt="" />
+              </div>
+              <TimeField
+                label={t("cf_hoursEnd")}
+                icon="https://api.iconify.design/lucide:sunset.svg?color=%232e7d32"
+                min={workEndMin}
+                error={errors.hours}
+                onChange={(v) => { setWorkEndMin(v); if (errors.hours) setErrors({ ...errors, hours: false }); }}
+              />
             </div>
             {errors.hours && <span style={{ fontSize: "11px", color: theme.error, fontWeight: "bold" }}>{t("cf_hoursError")}</span>}
-          </div>
-
-          <div style={{ ...cardStyle, border: errors.card ? `1.5px solid ${theme.error}` : `1px solid ${theme.border}` }}>
-            <label style={{ ...labelStyle, color: errors.card ? theme.error : theme.textSecondary }}>
-              <img src="https://api.iconify.design/lucide:credit-card.svg?color=%232e7d32" width="15" height="15" alt="" />
-              {t("cf_bankCard")}
-            </label>
-            <input type="text" inputMode="numeric" maxLength={19} placeholder={t("cf_cardPlaceholder")} value={bankCard} onChange={handleCardChange} className="custom-input" />
-            {errors.card && <span style={{ fontSize: "11px", color: theme.error, fontWeight: "bold" }}>{t("cf_cardError")}</span>}
-          </div>
-
-          <div style={cardStyle}>
-            <label style={labelStyle}>
-              <img src="https://api.iconify.design/lucide:user.svg?color=%232e7d32" width="15" height="15" alt="" />
-              {t("cf_cardholder")}
-            </label>
-            <input type="text" placeholder={t("cf_cardholderPlaceholder")} value={cardholderName} onChange={(e) => setCardholderName(e.target.value)} className="custom-input" />
           </div>
 
           <div style={{ ...cardStyle, border: errors.devices ? `1.5px solid ${theme.error}` : `1px solid ${theme.border}` }}>
@@ -573,8 +641,8 @@ export const CheckTypeFixer = ({ onSaveProfile, onChangeRole }) => {
               color: theme.textInverse,
               fontWeight: "700",
               fontSize: "14px",
-              padding: "14px",
-              borderRadius: "12px",
+padding: "14px",
+              borderRadius: "9999px",
               border: "none",
               cursor: "pointer",
               boxShadow: `0 4px 14px ${theme.primaryLight}`,
@@ -596,10 +664,7 @@ export const CheckTypeFixer = ({ onSaveProfile, onChangeRole }) => {
       {isSuccessModalOpen && (
         <div style={{
           position: "fixed",
-          top: 0,
-          left: 0,
-          width: "100vw",
-          height: "100vh",
+          inset: 0,
           backgroundColor: "rgba(0, 0, 0, 0.5)",
           display: "flex",
           alignItems: "center",
@@ -620,7 +685,9 @@ export const CheckTypeFixer = ({ onSaveProfile, onChangeRole }) => {
             flexDirection: "column",
             alignItems: "center",
             gap: "14px",
-            boxSizing: "border-box"
+            boxSizing: "border-box",
+            maxHeight: "90vh",
+            overflowY: "auto"
           }}>
             <div style={{
               width: "56px",
@@ -650,8 +717,8 @@ export const CheckTypeFixer = ({ onSaveProfile, onChangeRole }) => {
                 color: theme.textInverse,
                 fontWeight: "700",
                 fontSize: "14px",
-                padding: "12px",
-                borderRadius: "10px",
+padding: "12px",
+                borderRadius: "9999px",
                 border: "none",
                 cursor: "pointer",
                 marginTop: "6px",
@@ -667,3 +734,5 @@ export const CheckTypeFixer = ({ onSaveProfile, onChangeRole }) => {
     </div>
   );
 };
+
+

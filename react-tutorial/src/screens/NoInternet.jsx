@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useTheme } from "../theme/ThemeContext";
 import { useTranslation } from "../i18n/LanguageContext";
+import { UButton, UCard } from "../components/ui";
 import noConnectionAnim from "../animations/nointernet.svg";
 
 export const NoInternet = ({ onRetry }) => {
@@ -51,14 +52,11 @@ export const NoInternet = ({ onRetry }) => {
       boxSizing: "border-box",
       width: "100%"
     }}>
-      <div style={{
-        backgroundColor: theme.surface,
-        padding: `${theme.spacing.xxxl} ${theme.spacing.xxl}`,
-        borderRadius: theme.radius.lg,
-        boxShadow: theme.shadowMd,
+      <UCard style={{
         width: "100%",
         maxWidth: "380px",
         margin: "0 auto",
+        padding: `${theme.spacing.xxxl} ${theme.spacing.xxl}`,
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -82,40 +80,17 @@ export const NoInternet = ({ onRetry }) => {
 
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           <h1 style={{ fontSize: theme.font.xxl, fontWeight: theme.font.extrabold, color: theme.text, margin: 0 }}>
-            Internet aloqasi yo'q
+            {t("noInternetTitle")}
           </h1>
           <p style={{ fontSize: theme.font.sm, color: theme.textSecondary, margin: 0, lineHeight: "1.5" }}>
-            Iltimos, internet tarmog'iga ulanganingizni tekshiring va qaytadan urinib ko'ring.
+            {t("noInternetDesc")}
           </p>
         </div>
 
-        <button
-          onClick={handleManualRetry}
-          disabled={isRetrying}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: "100%",
-            padding: "14px 16px",
-            borderRadius: theme.radius.md,
-            border: "none",
-            backgroundColor: theme.primary,
-            color: theme.textInverse,
-            fontSize: theme.font.md,
-            fontWeight: theme.font.bold,
-            cursor: isRetrying ? "not-allowed" : "pointer",
-            opacity: isRetrying ? 0.7 : 1,
-            transition: theme.transition.normal,
-            boxSizing: "border-box",
-            boxShadow: `0 4px 10px ${theme.mode === "dark" ? "rgba(16,185,129,0.3)" : "rgba(46,125,50,0.3)"}`
-          }}
-          onMouseOver={(e) => { if (!isRetrying) e.currentTarget.style.backgroundColor = theme.primaryHover; }}
-          onMouseOut={(e) => { if (!isRetrying) e.currentTarget.style.backgroundColor = theme.primary; }}
-        >
-          {isRetrying ? "Tekshirilmoqda..." : t("retry")}
-        </button>
-      </div>
+        <UButton onClick={handleManualRetry} disabled={isRetrying} loading={isRetrying} full>
+          {isRetrying ? t("checking") : t("retry")}
+        </UButton>
+      </UCard>
     </div>
   );
 };
